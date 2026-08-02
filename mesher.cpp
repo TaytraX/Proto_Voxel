@@ -22,7 +22,7 @@ static inline const int getAxisIndex(const int axis, const int a, const int b, c
     else return voxelIndex(c, b, a);
 }
 
-static inline const void insertQuad(std::vector<uint64_t>& vertices, uint32_t quad, int& vertexI, int& maxVertices) {
+static inline const void insertQuad(std::vector<uint64_t>& vertices, uint64_t quad, int& vertexI, int& maxVertices) {
     if (vertexI >= maxVertices - 6) {
         vertices.resize(maxVertices * 2, 0);
         maxVertices *= 2;

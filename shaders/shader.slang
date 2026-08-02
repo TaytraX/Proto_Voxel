@@ -5,7 +5,7 @@ enum Map {
 }
 
 uint getMaterial(uint iD, Map usage) {
-    if (iD == 1) return (uint)usage;
+    if (iD == 1 || iD == 0) return (uint)usage;
     else {
         switch (usage) {
         case Map::ALBEDO: return 3;

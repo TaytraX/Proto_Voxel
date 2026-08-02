@@ -103,6 +103,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     for (int i = 272; i < 524; ++i) {
         chunk[i] = 1; // Remplit le chunk avec des voxels pleins (id 1)
     }
+
+    chunk[621] = 2;
     
     MeshData mainThreadMeshData;
     mainThreadMeshData.opaqueMask = fillOpaqueMask(chunk);
