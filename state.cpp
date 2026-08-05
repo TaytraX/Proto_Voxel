@@ -26,27 +26,13 @@ void RenderState::createGraphicsPipeline() {
     vertShaderStageInfo.module = shaderModule;
     vertShaderStageInfo.pName = "vs_main";
 
-    VkPipelineShaderStageCreateInfo tessCShaderStageInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
-        .module = shaderModule,
-        .pName = "hs_main"
-    };
-
-    VkPipelineShaderStageCreateInfo tessEShaderStageInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
-        .module = shaderModule,
-        .pName = "ds_main"
-    };
-
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fragShaderStageInfo.module = shaderModule;
     fragShaderStageInfo.pName = "ps_main";
 
-    VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, tessCShaderStageInfo, tessEShaderStageInfo, fragShaderStageInfo };
+    VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
@@ -69,8 +55,7 @@ void RenderState::createGraphicsPipeline() {
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST,
-        .primitiveRestartEnable = VK_FALSE
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
     };
 
     VkPipelineViewportStateCreateInfo viewportState{
@@ -83,7 +68,7 @@ void RenderState::createGraphicsPipeline() {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .depthClampEnable = VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_LINE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
         .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .lineWidth = 1.0f,
@@ -116,11 +101,6 @@ void RenderState::createGraphicsPipeline() {
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
-
-    VkPipelineTessellationStateCreateInfo tesselationState{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
-        .patchControlPoints = 3
-    };
 
     VkPipelineDepthStencilStateCreateInfo depthStencilState{
     .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
@@ -156,9 +136,8 @@ void RenderState::createGraphicsPipeline() {
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 4;
+    pipelineInfo.stageCount = 2;
     pipelineInfo.pStages = shaderStages;
-    pipelineInfo.pTessellationState = &tesselationState;
     pipelineInfo.pVertexInputState = &vertexInputState;
     pipelineInfo.pInputAssemblyState = &inputAssembly;
     pipelineInfo.pViewportState = &viewportState;
@@ -168,8 +147,6 @@ void RenderState::createGraphicsPipeline() {
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.pDepthStencilState = &depthStencilState;
     pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.subpass = 0;
-    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.pNext = &renderingCI;
 
     if (vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
@@ -529,14 +506,8 @@ uint32_t RenderState::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
 RenderState::RenderState(MeshData mesh) {
     chunkMesh = mesh;
     std::vector<std::string> files = {
-        //////////////////////////////////////////////STONE/////////////////////////////////////////////
         "Rock032_4K-JPG_Color",
-        "Rock032_4K-JPG_NormalGL",
-        "Rock032_4K-JPG_Displacement",
-        //////////////////////////////////////////////DIRT//////////////////////////////////////////////
-        "GroundDirtWeedsPatchy004_COL_4K",
-        "GroundDirtWeedsPatchy004_NRM_4K",
-        "GroundDirtWeedsPatchy004_DISP_4K",
+        "GroundDirtWeedsPatchy004_COL_4K"
     };
     createCommandPool();
     createCommandBuffers();
@@ -561,9 +532,7 @@ void RenderState::createDescriptorSetLayout() {
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     bindings[0].descriptorCount = 1;
     bindings[0].stageFlags =
-        VK_SHADER_STAGE_VERTEX_BIT |
-        VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT |
-        VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;;
+        VK_SHADER_STAGE_VERTEX_BIT;
 
     VkDescriptorSetLayoutCreateInfo descLayoutCI{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,

@@ -74,12 +74,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
+#ifdef _DEBUG
     AllocConsole();
 
     FILE* fp;
     freopen_s(&fp, "CONOUT$", "w", stdout);
     freopen_s(&fp, "CONOUT$", "w", stderr);
     freopen_s(&fp, "CONIN$", "r", stdin);
+#endif
 
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
@@ -195,7 +197,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    rid[1].hwndTarget = hWnd;
 
    RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
-   connectToServer("127.0.0.1", 82807);
+   //connectToServer("127.0.0.1", 82807);
    context.init(hWnd, hInstance);
 
    if (!hWnd)

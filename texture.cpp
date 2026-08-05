@@ -16,7 +16,7 @@ struct Texture {
 	VkSampler sampler{ VK_NULL_HANDLE };
 };
 
-std::array<Texture, 6> textures{};
+std::array<Texture, 2> textures;
 VkBuffer imgSrcBuffer;
 VmaAllocation imgSrcAllocation;
 VkSampler texSampler;
@@ -90,7 +90,7 @@ void createTextures(std::vector<std::string> fileNames, VkCommandPool& commandPo
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 			.srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
 			.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-			.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT | VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
 			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
 			.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			.newLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL,
