@@ -1,16 +1,5 @@
 #include "mesher.h"
 
-// Dimensions du buffer voxel brut fourni par l'appelant (chunk cubique padded).
-// Ta formule i = y*(Tx*Tz) + Tx*z + x devient, avec Tx = Tz = CS_P :
-static constexpr int Tx = CS_P;
-static constexpr int Tz = CS_P;
-
-// Implémente directement ton système de mapping :
-// i = y*(Tx*Tz) + Tx*z + x
-static inline const int voxelIndex(const int x, const int y, const int z) {
-    return (y * (Tx * Tz)) + (Tx * z) + x;
-}
-
 // Remappe les paramètres génériques (a, b, c) de l'algorithme — dont le sens
 // change selon l'axe balayé — vers de vraies coordonnées (x, y, z), puis
 // appelle voxelIndex(). C'est mathématiquement équivalent à l'ancienne
@@ -140,9 +129,9 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
                     }
                     bitsHere &= ~((1ull << (bitPos + rightMerged)) - 1);
 
-                    const uint8_t meshFront = forward - forwardMergedRef;
-                    const uint8_t meshLeft = bitPos;
-                    const uint8_t meshUp = layer + (~face & 1);
+                    const uint8_t meshFront = forward - forwardMergedRef + 1;
+                    const uint8_t meshLeft = bitPos + 1;
+                    const uint8_t meshUp = layer + (~face & 1) + 1;
 
                     const uint8_t meshWidth = rightMerged;
                     const uint8_t meshLength = forwardMergedRef + 1;
@@ -215,9 +204,9 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
                         continue;
                     }
 
-                    const uint8_t meshLeft = right - rightMergedRef;
-                    const uint8_t meshFront = forward - forwardMergedRef;
-                    const uint8_t meshUp = bitPos - 1 + (~face & 1);
+                    const uint8_t meshLeft = right - rightMergedRef + 1;
+                    const uint8_t meshFront = forward - forwardMergedRef + 1;
+                    const uint8_t meshUp = bitPos + (~face & 1);
 
                     const uint8_t meshWidth = 1 + rightMergedRef;
                     const uint8_t meshLength = 1 + forwardMergedRef;

@@ -48,6 +48,17 @@ static constexpr int CS_2 = CS * CS;
 static constexpr int CS_P2 = CS_P * CS_P;
 static constexpr int CS_P3 = CS_P * CS_P * CS_P;
 
+
+
+// Dimensions du buffer voxel brut fourni par l'appelant (chunk cubique padded).
+// Ta formule i = y*(Tx*Tz) + Tx*z + x devient, avec Tx = Tz = CS_P :
+static constexpr int Tx = CS_P;
+static constexpr int Tz = CS_P;
+
+static const int voxelIndex(const int x, const int y, const int z) {
+	return (y * (Tx * Tz)) + (Tx * z) + x;
+}
+
 struct MeshData {
 	uint16_t* faceMasks = nullptr; // CS_2 * 6
 	uint16_t* opaqueMask = nullptr; //CS_P2

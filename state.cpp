@@ -2,17 +2,12 @@
 #include "texture.h"
 #include <fstream>
 
-Camera 					       camera(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(90.0f), glm::radians(0.0f));
+Camera 					       camera(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(90.0f), glm::radians(0.0f));
 Projection 			           projection(800, 600, glm::radians(45.0f), 0.1f, 100.0f);
 CameraUniform				   cameraUniform;
 CameraBuffer				   cameraUniformBuffer;
 
-MeshData chunkMesh;
-
-// 6 vertices par quad : 2 patchs triangle (3 control points chacun,
-// cf. pTessellationState.patchControlPoints = 3 et [domain("tri")]
-// côté shader) pour couvrir tout le quad (uv[]/cornerIndex[] dans
-// vs_main attendent bien 6 entrées, motif 0,1,2,0,2,3).
+MeshData* chunkMesh;
 // ── pipeline ────────────────────────────────────────────────────
 
 void RenderState::createGraphicsPipeline() {
@@ -403,7 +398,7 @@ void RenderState::drawFrame() {
 }
 
 void RenderState::createVertexBufferStaged() {
-    VkDeviceSize bufferSize = sizeof(uint64_t) * chunkMesh.vertices->size();
+    VkDeviceSize bufferSize = sizeof(uint64_t) * chunkMesh->vertices->size();
 
     // 1. Staging buffer (CPU -> visible)
     VkBuffer stagingBuffer;
@@ -423,7 +418,7 @@ void RenderState::createVertexBufferStaged() {
     vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
         &stagingBuffer, &stagingAllocation, &stagingResultInfo);
 
-    memcpy(stagingResultInfo.pMappedData, chunkMesh.vertices->data(), (size_t)bufferSize);
+    memcpy(stagingResultInfo.pMappedData, chunkMesh->vertices->data(), (size_t)bufferSize);
 
     // 2. Buffer final (GPU only, rapide pour le rendu)
     VkBufferCreateInfo bufferInfo{};
@@ -455,6 +450,133 @@ void RenderState::createVertexBufferStaged() {
     VkBufferCopy copyRegion{};
     copyRegion.size = bufferSize;
     vkCmdCopyBuffer(cmd, stagingBuffer, chunkVertBuffer, 1, &copyRegion);
+
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+
+    vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(context.graphicsQueue); // à remplacer par un fence en prod
+
+    // 4. Nettoyage
+    vkFreeCommandBuffers(context.device, commandPool, 1, &cmd);
+    vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
+}
+
+void RenderState::updateBuffer() {
+    VkDeviceSize bufferSize = sizeof(uint64_t) * chunkMesh->vertices->size();
+
+    // 1. Staging buffer (CPU -> visible)
+    VkBuffer stagingBuffer;
+    VmaAllocation stagingAllocation;
+
+    VkBufferCreateInfo stagingInfo{};
+    stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    stagingInfo.size = bufferSize;
+    stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    VmaAllocationCreateInfo stagingAllocInfo{};
+    stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+        | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VmaAllocationInfo stagingResultInfo;
+    vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
+        &stagingBuffer, &stagingAllocation, &stagingResultInfo);
+
+    memcpy(stagingResultInfo.pMappedData, chunkMesh->vertices->data(), (size_t)bufferSize);
+    VkCommandBufferAllocateInfo cbAllocInfo{};
+    cbAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cbAllocInfo.commandPool = commandPool;
+    cbAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cbAllocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(context.device, &cbAllocInfo, &cmd);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkBufferCopy copyRegion{};
+    copyRegion.size = bufferSize;
+    vkCmdCopyBuffer(cmd, stagingBuffer, chunkVertBuffer, 1, &copyRegion);
+
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+
+    vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(context.graphicsQueue); // à remplacer par un fence en prod
+
+    // 4. Nettoyage
+    vkFreeCommandBuffers(context.device, commandPool, 1, &cmd);
+    vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
+}
+
+void RenderState::updateIndirectBuffer() {
+    VkDrawIndirectCommand commands[6];
+    for (int i = 0; i < 6; i++) {
+        commands[i] = {
+            .vertexCount = 6,
+            .instanceCount = (unsigned)chunkMesh->faceVertexLength[i],
+            .firstVertex = (unsigned)(i + 1),
+            .firstInstance = (unsigned)chunkMesh->faceVertexBegin[i]
+        };
+    }
+    VkDeviceSize bufferSize = sizeof(VkDrawIndirectCommand) * std::size(commands);
+
+    // 1. Staging buffer (CPU -> visible)
+    VkBuffer stagingBuffer;
+    VmaAllocation stagingAllocation;
+
+    VkBufferCreateInfo stagingInfo{};
+    stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    stagingInfo.size = bufferSize;
+    stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    VmaAllocationCreateInfo stagingAllocInfo{};
+    stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+        | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VmaAllocationInfo stagingResultInfo;
+    vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
+        &stagingBuffer, &stagingAllocation, &stagingResultInfo);
+
+    memcpy(stagingResultInfo.pMappedData, commands, (size_t)bufferSize);
+    vmaFlushAllocation(
+        allocator,
+        stagingAllocation,
+        0,
+        bufferSize
+    );
+
+    // 3. Copie staging -> final via une command buffer "one-shot"
+    VkCommandBufferAllocateInfo cbAllocInfo{};
+    cbAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cbAllocInfo.commandPool = commandPool;
+    cbAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cbAllocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(context.device, &cbAllocInfo, &cmd);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkBufferCopy copyRegion{};
+    copyRegion.size = bufferSize;
+    vkCmdCopyBuffer(cmd, stagingBuffer, indirectBuffer, 1, &copyRegion);
 
     vkEndCommandBuffer(cmd);
 
@@ -503,8 +625,8 @@ uint32_t RenderState::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
     throw std::runtime_error("failed to find suitable memory type!");
 }
 
-RenderState::RenderState(MeshData mesh) {
-    chunkMesh = mesh;
+RenderState::RenderState(MeshData& mesh) {
+    chunkMesh = &mesh;
     std::vector<std::string> files = {
         "Rock032_4K-JPG_Color",
         "GroundDirtWeedsPatchy004_COL_4K"
@@ -549,39 +671,39 @@ void RenderState::createIndirectBuffer() {
     auto commands = std::vector{
         VkDrawIndirectCommand {
             .vertexCount = 6,
-            .instanceCount = (unsigned int)chunkMesh.faceVertexLength[0],
+            .instanceCount = (unsigned int)chunkMesh->faceVertexLength[0],
             .firstVertex = 1,
-            .firstInstance = (unsigned int)chunkMesh.faceVertexBegin[0]
+            .firstInstance = (unsigned int)chunkMesh->faceVertexBegin[0]
         },
         VkDrawIndirectCommand {
             .vertexCount = 6,
-            .instanceCount = (unsigned int)chunkMesh.faceVertexLength[1],
+            .instanceCount = (unsigned int)chunkMesh->faceVertexLength[1],
             .firstVertex = 2,
-            .firstInstance = (unsigned int)chunkMesh.faceVertexBegin[1]
+            .firstInstance = (unsigned int)chunkMesh->faceVertexBegin[1]
         },
         VkDrawIndirectCommand {
             .vertexCount = 6,
-            .instanceCount = (unsigned int)chunkMesh.faceVertexLength[2],
+            .instanceCount = (unsigned int)chunkMesh->faceVertexLength[2],
             .firstVertex = 3,
-            .firstInstance = (unsigned int)chunkMesh.faceVertexBegin[2]
+            .firstInstance = (unsigned int)chunkMesh->faceVertexBegin[2]
         },
         VkDrawIndirectCommand {
             .vertexCount = 6,
-            .instanceCount = (unsigned int)chunkMesh.faceVertexLength[3],
+            .instanceCount = (unsigned int)chunkMesh->faceVertexLength[3],
             .firstVertex = 4,
-            .firstInstance = (unsigned int)chunkMesh.faceVertexBegin[3]
+            .firstInstance = (unsigned int)chunkMesh->faceVertexBegin[3]
         },
         VkDrawIndirectCommand {
             .vertexCount = 6,
-            .instanceCount = (unsigned int)chunkMesh.faceVertexLength[4],
+            .instanceCount = (unsigned int)chunkMesh->faceVertexLength[4],
             .firstVertex = 5,
-            .firstInstance = (unsigned int)chunkMesh.faceVertexBegin[4]
+            .firstInstance = (unsigned int)chunkMesh->faceVertexBegin[4]
         },
         VkDrawIndirectCommand {
             .vertexCount = 6,
-            .instanceCount = (unsigned int)chunkMesh.faceVertexLength[5],
+            .instanceCount = (unsigned int)chunkMesh->faceVertexLength[5],
             .firstVertex = 6,
-            .firstInstance = (unsigned int)chunkMesh.faceVertexBegin[5]
+            .firstInstance = (unsigned int)chunkMesh->faceVertexBegin[5]
         },
     };
     VkDeviceSize bufferSize = sizeof(VkDrawIndirectCommand) * commands.size();
@@ -616,7 +738,7 @@ void RenderState::createIndirectBuffer() {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = bufferSize;
-    bufferInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    bufferInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
@@ -707,8 +829,11 @@ void RenderState::createDescriptorSets() {
     vkUpdateDescriptorSets(context.device, 1, &descriptorWrite, 0, nullptr);
 }
 
-void RenderState::update() {
+void RenderState::update(MeshData& data) {
+    chunkMesh = &data;
     cameraUniformBuffer.update(camera, projection);
+    updateBuffer();
+    updateIndirectBuffer();
 }
 
 RenderState::~RenderState() {

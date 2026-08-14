@@ -1,4 +1,5 @@
 #include "texture.h"
+#include <iostream>
 #include <ktx.h>
 #include <array>
 #include "shared_context.h"
@@ -42,6 +43,8 @@ void createTextures(std::vector<std::string> fileNames, VkCommandPool& commandPo
 			.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
 		};
+
+		std::cout << "Num mapLevels : " << ktxTexture->numLevels << " for texture: " << filename << std::endl;
 		VmaAllocationCreateInfo texImageAllocCI{ .usage = VMA_MEMORY_USAGE_AUTO };
 		vmaCreateImage(context.allocator, &texImgCI, &texImageAllocCI, &textures[i].image, &textures[i].allocation, nullptr);
 		VkImageViewCreateInfo texVewCI{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .image = textures[i].image, .viewType = VK_IMAGE_VIEW_TYPE_2D, .format = texImgCI.format, .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = ktxTexture->numLevels, .layerCount = 1 } };

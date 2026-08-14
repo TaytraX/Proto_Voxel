@@ -51,14 +51,17 @@
     <ClInclude Include="chunky.h">
       <Filter>Fichiers d%27en-tête\render_backend</Filter>
     </ClInclude>
-    <ClInclude Include="Camera.h">
-      <Filter>Fichiers d%27en-tête</Filter>
-    </ClInclude>
     <ClInclude Include="texture.h">
       <Filter>Fichiers d%27en-tête\render_backend</Filter>
     </ClInclude>
     <ClInclude Include="mesher.h">
       <Filter>Fichiers d%27en-tête\render_backend</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Fichiers d%27en-tête\render_backend</Filter>
+    </ClInclude>
+    <ClInclude Include="block.h">
+      <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -77,20 +80,17 @@
     <ClCompile Include="state.cpp">
       <Filter>Fichiers sources\render_backend</Filter>
     </ClCompile>
-    <ClCompile Include="chunky.cpp">
-      <Filter>Fichiers sources\render_backend</Filter>
-    </ClCompile>
-    <ClCompile Include="Camera.cpp">
-      <Filter>Fichiers sources</Filter>
-    </ClCompile>
     <ClCompile Include="texture.cpp">
       <Filter>Fichiers sources\render_backend</Filter>
     </ClCompile>
     <ClCompile Include="mesher.cpp">
       <Filter>Fichiers sources\render_backend</Filter>
     </ClCompile>
-    <ClCompile Include="bin_meshing.cpp">
+    <ClCompile Include="Camera.cpp">
       <Filter>Fichiers sources\render_backend</Filter>
+    </ClCompile>
+    <ClCompile Include="block.cpp">
+      <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

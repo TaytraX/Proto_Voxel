@@ -7,7 +7,7 @@
 #include "client.h"
 #include "shared_context.h"
 #include "state.h"
-#include "chunky.h"
+#include "block.h"
 
 #define MAX_LOADSTRING 100
 bool keys[256] = {};
@@ -35,8 +35,11 @@ POINT lastMousePos;
 POINT currentMousePos;
 glm::vec3 cameraForward;
 glm::vec3 cameraRight;
-float cameraSpeed = 0.1f; // Vitesse de déplacement de la caméra
+float cameraSpeed = 0.04f; // Vitesse de déplacement de la caméra
 float cameraSensibility = 0.01f; // Vitesse de déplacement de la caméra
+MeshData mainThreadMeshData;
+
+uint32_t chunk[CS_P3] = { 0 };
 
 glm::vec2 mouseDelta;
 
@@ -62,6 +65,8 @@ void processInput() {
     if (keys[VK_SHIFT]) {
         camera.position.y -= cameraSpeed;
     }
+    
+    if (keys[VK_ESCAPE]) isRunning = false;
 
     //std::cout << "camera position is (" << camera.position.x << ", " << camera.position.y << ", " << camera.position.z << ')' << std::endl;
 
@@ -74,14 +79,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
-#ifdef _DEBUG
-    AllocConsole();
-
-    FILE* fp;
-    freopen_s(&fp, "CONOUT$", "w", stdout);
-    freopen_s(&fp, "CONOUT$", "w", stderr);
-    freopen_s(&fp, "CONIN$", "r", stdin);
-#endif
+	AllocConsole();
+	FILE* pCout;
+	freopen_s(&pCout, "CONOUT$", "w", stdout);
 
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
@@ -100,15 +100,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-
-    uint32_t chunk[CS_P3] = { 0 };
-    for (int i = 272; i < 524; ++i) {
-        chunk[i] = 1; // Remplit le chunk avec des voxels pleins (id 1)
+    for (int x = 0; x < 16; ++x) {
+		for (int y = 1; y < 2; ++y) {
+			for (int z = 0; z < 16; ++z) {
+				chunk[voxelIndex(x, y, z)] = 2;
+			}
+		}
     }
 
-    chunk[621] = 2;
+    chunk[voxelIndex(1, 2, 1)] = 1;
     
-    MeshData mainThreadMeshData;
     mainThreadMeshData.opaqueMask = fillOpaqueMask(chunk);
     mainThreadMeshData.faceMasks = new uint16_t[CS_2 * 6]{ 0 };
     mainThreadMeshData.forwardMerged = new uint8_t[CS_2]{ 0 };
@@ -133,7 +134,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
 
         processInput();
-        renderState.update();
+        renderState.update(mainThreadMeshData);
         renderState.drawFrame();
     }
     return (int) msg.wParam;
@@ -235,7 +236,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     cameraForward.z = sin(camera.yaw) * cos(camera.pitch);
 
 	cameraRight = glm::normalize(glm::cross(cameraForward, glm::vec3(0.0f, 1.0f, 0.0f)));
-    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) isRunning = false;
+    if (GetAsyncKeyState('R') & 0x8000) {
+        addBlock(camera.position, cameraForward, 2, chunk);
+        mainThreadMeshData.opaqueMask = fillOpaqueMask(chunk);
+        mesh(chunk, mainThreadMeshData);
+    }
+    if (GetAsyncKeyState('Q') & 0x8000) {
+        removeBlock(camera.position, cameraForward, chunk);
+        mainThreadMeshData.opaqueMask = fillOpaqueMask(chunk);
+        mesh(chunk, mainThreadMeshData);
+    }
 
     switch (message)
     {

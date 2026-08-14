@@ -44,6 +44,8 @@ class RenderState {
     void                        createBufferDescriptor();
     void					    createVertexBufferStaged();
     void                        createIndirectBuffer();
+    void                        updateBuffer();
+    void                        updateIndirectBuffer();
 
     void                        setupBufferDescriptor();
 
@@ -56,8 +58,8 @@ class RenderState {
     void                        createSyncObjects();
 
 public:
-    RenderState(MeshData mesh);
+    RenderState(MeshData& mesh);
 	~RenderState();
-    void                        update();
+    void                        update(MeshData& data);
     void                        drawFrame();
 };
