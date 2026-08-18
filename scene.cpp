@@ -6,7 +6,7 @@ namespace scene {
 	std::vector<std::pair<MeshData, glm::ivec3>> genScene(uint32_t voxels[RENDER_DISTANCE * 2 + 1][RENDER_DISTANCE * 2 + 1][CHUNK_AXIS3_SIZE]) {
 		std::vector<std::pair<MeshData, glm::ivec3>> sceneChunks;
 		MeshData meshData{
-			.faceMasks = new uint16_t[CS_2 * 6]{ 0 },
+			.faceMasks = new uint64_t[CS_2 * 6]{ 0 },
 			.opaqueMask = nullptr,
 			.forwardMerged = new uint8_t[CS_2]{ 0 },
 			.rightMerged = new uint8_t[CS]{ 0 },

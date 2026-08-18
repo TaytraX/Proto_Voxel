@@ -53,7 +53,7 @@ VSOutput vs_main(uint2 data, uint vertexID: SV_VertexID, uint face: SV_StartVert
         (data.x >> 12) & 0x3F
     );
 
-    int w = int((data.x >> 18u) & 31u), h = int((data.x >> 24u) & 31u);
+    int w = int((data.x >> 18u) & 63u), h = int((data.x >> 24u) & 63u);
     uint wDir = (faceIdx & 2) >> 1, hDir = 2 - (faceIdx >> 2);
 
     int c = cornerIdx[vertexID];
@@ -69,7 +69,7 @@ VSOutput vs_main(uint2 data, uint vertexID: SV_VertexID, uint face: SV_StartVert
         int8_t((face & 0xFF))
     );
 
-    origin += (chunkPos * 14);
+    origin += (chunkPos * 62);
 
     VSOutput output;
     output.world_position = origin;

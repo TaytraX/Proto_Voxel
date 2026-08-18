@@ -26,12 +26,12 @@ static inline const uint64_t getQuad(uint64_t x, uint64_t y, uint64_t z, uint64_
     return (type << 32) | (h << 24) | (w << 18) | (z << 12) | (y << 6) | x;
 }
 
-constexpr uint16_t P_MASK = ~(1ull << 15 | 1);
+constexpr uint64_t P_MASK = ~(1ull << 63 | 1);
 
-uint16_t* fillOpaqueMask(const uint32_t* voxels) {
-    uint16_t* opaqueMask = new uint16_t[CS_P2];
+uint64_t* fillOpaqueMask(const uint32_t* voxels) {
+    uint64_t* opaqueMask = new uint64_t[CS_P2];
 
-    // Reset: chaque uint16_t va être reconstruit bit par bit ci-dessous.
+    // Reset: chaque uint64_t va être reconstruit bit par bit ci-dessous.
     for (int i = 0; i < CS_P2; i++) {
         opaqueMask[i] = 0;
     }
@@ -45,7 +45,7 @@ uint16_t* fillOpaqueMask(const uint32_t* voxels) {
         const int aCS_P = a * CS_P;
 
         for (int b = 0; b < CS_P; b++) {
-            uint16_t bits = 0;
+            uint64_t bits = 0;
 
             for (int c = 0; c < CS_P; c++) {
                 if (voxels[voxelIndex(c, a, b)] != 0) {
@@ -64,8 +64,8 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
     meshData.vertexCount = 0;
     int vertexI = 0;
 
-    uint16_t* opaqueMask = meshData.opaqueMask;
-    uint16_t* faceMasks = meshData.faceMasks;
+    uint64_t* opaqueMask = meshData.opaqueMask;
+    uint64_t* faceMasks = meshData.faceMasks;
     uint8_t* forwardMerged = meshData.forwardMerged;
     uint8_t* rightMerged = meshData.rightMerged;
 
@@ -74,7 +74,7 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
         const int aCS_P = a * CS_P;
 
         for (int b = 1; b < CS_P - 1; b++) {
-            const uint16_t columnBits = opaqueMask[(a * CS_P) + b] & P_MASK;
+            const uint64_t columnBits = opaqueMask[(a * CS_P) + b] & P_MASK;
             const int baIndex = (b - 1) + (a - 1) * CS;
             const int abIndex = (a - 1) + (b - 1) * CS;
 
@@ -99,10 +99,10 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
             const int bitsLocation = layer * CS + face * CS_2;
 
             for (int forward = 0; forward < CS; forward++) {
-                uint16_t bitsHere = faceMasks[forward + bitsLocation];
+                uint64_t bitsHere = faceMasks[forward + bitsLocation];
                 if (bitsHere == 0) continue;
 
-                const uint16_t bitsNext = forward + 1 < CS ? faceMasks[(forward + 1) + bitsLocation] : 0;
+                const uint64_t bitsNext = forward + 1 < CS ? faceMasks[(forward + 1) + bitsLocation] : 0;
 
                 uint8_t rightMerged = 1;
                 while (bitsHere) {
@@ -113,7 +113,7 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
                     bitPos = __builtin_ctzll(bitsHere);
 #endif
 
-                    const uint32_t type = voxels[getAxisIndex(axis, forward + 1, bitPos + 1, layer + 1)];
+                    const uint8_t type = voxels[getAxisIndex(axis, forward + 1, bitPos + 1, layer + 1)];
                     uint8_t& forwardMergedRef = forwardMerged[bitPos];
 
                     if ((bitsNext >> bitPos & 1) && type == voxels[getAxisIndex(axis, forward + 2, bitPos + 1, layer + 1)]) {
@@ -129,9 +129,9 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
                     }
                     bitsHere &= ~((1ull << (bitPos + rightMerged)) - 1);
 
-                    const uint8_t meshFront = forward - forwardMergedRef + 1;
-                    const uint8_t meshLeft = bitPos + 1;
-                    const uint8_t meshUp = layer + (~face & 1) + 1;
+                    const uint8_t meshFront = forward - forwardMergedRef;
+                    const uint8_t meshLeft = bitPos;
+                    const uint8_t meshUp = layer + (~face & 1);
 
                     const uint8_t meshWidth = rightMerged;
                     const uint8_t meshLength = forwardMergedRef + 1;
@@ -172,11 +172,11 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
             const int bitsForwardLocation = (forward + 1) * CS + face * CS_2;
 
             for (int right = 0; right < CS; right++) {
-                uint16_t bitsHere = faceMasks[right + bitsLocation];
+                uint64_t bitsHere = faceMasks[right + bitsLocation];
                 if (bitsHere == 0) continue;
 
-                const uint16_t bitsForward = forward < CS - 1 ? faceMasks[right + bitsForwardLocation] : 0;
-                const uint16_t bitsRight = right < CS - 1 ? faceMasks[right + 1 + bitsLocation] : 0;
+                const uint64_t bitsForward = forward < CS - 1 ? faceMasks[right + bitsForwardLocation] : 0;
+                const uint64_t bitsRight = right < CS - 1 ? faceMasks[right + 1 + bitsLocation] : 0;
                 const int rightCS = right * CS;
 
                 while (bitsHere) {
@@ -189,7 +189,7 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
 
                     bitsHere &= ~(1ull << bitPos);
 
-                    const uint32_t type = voxels[getAxisIndex(axis, right + 1, forward + 1, bitPos)];
+                    const uint8_t type = voxels[getAxisIndex(axis, right + 1, forward + 1, bitPos)];
                     uint8_t& forwardMergedRef = forwardMerged[rightCS + (bitPos - 1)];
                     uint8_t& rightMergedRef = rightMerged[bitPos - 1];
 
@@ -204,9 +204,9 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
                         continue;
                     }
 
-                    const uint8_t meshLeft = right - rightMergedRef + 1;
-                    const uint8_t meshFront = forward - forwardMergedRef + 1;
-                    const uint8_t meshUp = bitPos + (~face & 1);
+                    const uint8_t meshLeft = right - rightMergedRef;
+                    const uint8_t meshFront = forward - forwardMergedRef;
+                    const uint8_t meshUp = bitPos - 1 + (~face & 1);
 
                     const uint8_t meshWidth = 1 + rightMergedRef;
                     const uint8_t meshLength = 1 + forwardMergedRef;
@@ -226,5 +226,5 @@ void mesh(const uint32_t* voxels, MeshData& meshData) {
         meshData.faceVertexLength[face] = faceVertexLength;
     }
 
-    meshData.vertexCount = vertexI;
+    meshData.vertexCount = vertexI + 1;
 }

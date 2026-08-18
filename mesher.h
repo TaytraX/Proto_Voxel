@@ -56,13 +56,13 @@ static constexpr int CS_P3 = CS_P * CS_P * CS_P;
 static constexpr int Tx = CS_P;
 static constexpr int Tz = CS_P;
 
-static const int voxelIndex(const int x, const int y, const int z) {
+static const inline int voxelIndex(const int x, const int y, const int z) {
 	return (y * (Tx * Tz)) + (Tx * z) + x;
 }
 
 struct MeshData {
-	uint16_t* faceMasks = nullptr; // CS_2 * 6
-	uint16_t* opaqueMask = nullptr; //CS_P2
+	uint64_t* faceMasks = nullptr; // CS_2 * 6
+	uint64_t* opaqueMask = nullptr; //CS_P2
 	uint8_t* forwardMerged = nullptr; // CS_2
 	uint8_t* rightMerged = nullptr; // CS
 	std::vector<uint64_t>* vertices = nullptr;
@@ -72,14 +72,6 @@ struct MeshData {
 	int faceVertexLength[6] = { 0 };
 };
 
-// @param[in] voxels: The input data includes duplicate edge data from neighboring chunks which is used
-// for visibility culling. For optimal performance, your world data should already be structured
-// this way so that you can feed the data straight into this algorithm.
-// Input data is ordered in ZXY and is 64^3 which results in a 62^3 mesh.
-//
-// @param[out] meshData The allocated vertices in MeshData with a length of meshData.vertexCount.
-void mesh(const uint32_t* voxels, MeshData& meshData);
-
 // @brief Fills meshData.opaqueMask from the raw voxel buffer. MUST be called
 // before mesh() on every call, since mesh() only reads opaqueMask/faceMasks,
 // never voxels directly for visibility testing.
@@ -88,6 +80,14 @@ void mesh(const uint32_t* voxels, MeshData& meshData);
 // @param[out] meshData: meshData.opaqueMask must already be allocated with
 // CS_P2 elements. This function overwrites it completely (no need to
 // zero-initialize beforehand).
-uint16_t* fillOpaqueMask(const uint32_t* voxels);
+uint64_t* fillOpaqueMask(const uint32_t* voxels);
+
+// @param[in] voxels: The input data includes duplicate edge data from neighboring chunks which is used
+// for visibility culling. For optimal performance, your world data should already be structured
+// this way so that you can feed the data straight into this algorithm.
+// Input data is ordered in ZXY and is 64^3 which results in a 62^3 mesh.
+//
+// @param[out] meshData The allocated vertices in MeshData with a length of meshData.vertexCount.
+void mesh(const uint32_t* voxels, MeshData& meshData);
 
 #endif // MESHER_H
