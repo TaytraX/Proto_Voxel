@@ -7,6 +7,7 @@
 #include "client.h"
 #include "shared_context.h"
 #include "state.h"
+#include "scene.h"
 #include "block.h"
 
 #define MAX_LOADSTRING 100
@@ -37,9 +38,9 @@ glm::vec3 cameraForward;
 glm::vec3 cameraRight;
 float cameraSpeed = 0.04f; // Vitesse de déplacement de la caméra
 float cameraSensibility = 0.01f; // Vitesse de déplacement de la caméra
-MeshData mainThreadMeshData;
+MeshData mainThreadMeshData[3];
 
-uint32_t chunk[CS_P3] = { 0 };
+uint32_t chunk[RENDER_DISTANCE * 2 + 1][RENDER_DISTANCE * 2 + 1][CHUNK_AXIS3_SIZE] = { 0 };
 
 glm::vec2 mouseDelta;
 
@@ -67,8 +68,6 @@ void processInput() {
     }
     
     if (keys[VK_ESCAPE]) isRunning = false;
-
-    //std::cout << "camera position is (" << camera.position.x << ", " << camera.position.y << ", " << camera.position.z << ')' << std::endl;
 
     mouseDelta.x = 0.0;
     mouseDelta.y = 0.0;
@@ -100,25 +99,22 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    for (int x = 0; x < 16; ++x) {
-		for (int y = 1; y < 2; ++y) {
-			for (int z = 0; z < 16; ++z) {
-				chunk[voxelIndex(x, y, z)] = 2;
-			}
-		}
-    }
+    for (int X = 0; X <= RENDER_DISTANCE * 2; X++)
+        for (int Z = 0; Z <= RENDER_DISTANCE * 2; Z++)
+            for (int x = 0; x < CHUNK_AXIS1_SIZE; ++x) {
+                for (int y = 1; y < 2; ++y) {
+                    for (int z = 0; z < CHUNK_AXIS1_SIZE; ++z) {
+                        chunk[X][Z][voxelIndex(x, y, z)] = 2;
+                        if(X < RENDER_DISTANCE)chunk[X][Z][voxelIndex(1, 2, 1)] = 1;
+                    }
+                }
+            }
 
-    chunk[voxelIndex(1, 2, 1)] = 1;
-    
-    mainThreadMeshData.opaqueMask = fillOpaqueMask(chunk);
-    mainThreadMeshData.faceMasks = new uint16_t[CS_2 * 6]{ 0 };
-    mainThreadMeshData.forwardMerged = new uint8_t[CS_2]{ 0 };
-    mainThreadMeshData.rightMerged = new uint8_t[CS]{ 0 };
-    mainThreadMeshData.vertices = new std::vector<uint64_t>(10000);
-    mainThreadMeshData.maxVertices = 10000;
+    auto scene = scene::genScene(chunk);
 
-	mesh(chunk, mainThreadMeshData);
-    RenderState renderState(mainThreadMeshData);
+    RenderState renderState;
+
+    renderState.updateChunk(&scene);
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_CLIENT));
 
@@ -134,7 +130,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
 
         processInput();
-        renderState.update(mainThreadMeshData);
+        renderState.update();
         renderState.drawFrame();
     }
     return (int) msg.wParam;
@@ -236,16 +232,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     cameraForward.z = sin(camera.yaw) * cos(camera.pitch);
 
 	cameraRight = glm::normalize(glm::cross(cameraForward, glm::vec3(0.0f, 1.0f, 0.0f)));
-    if (GetAsyncKeyState('R') & 0x8000) {
-        addBlock(camera.position, cameraForward, 2, chunk);
-        mainThreadMeshData.opaqueMask = fillOpaqueMask(chunk);
-        mesh(chunk, mainThreadMeshData);
-    }
-    if (GetAsyncKeyState('Q') & 0x8000) {
-        removeBlock(camera.position, cameraForward, chunk);
-        mainThreadMeshData.opaqueMask = fillOpaqueMask(chunk);
-        mesh(chunk, mainThreadMeshData);
-    }
 
     switch (message)
     {
@@ -297,6 +283,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         else if (raw->header.dwType == RIM_TYPEKEYBOARD)
         {
+            //std::cout << "camera position is (" << camera.position.x << ", " << camera.position.y << ", " << camera.position.z << ')' << std::endl;
             if ((keyboard->Flags & RI_KEY_BREAK) == 0)
             {
                 keys[keyboard->VKey] = true;

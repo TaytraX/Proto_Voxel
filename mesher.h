@@ -36,11 +36,12 @@ SOFTWARE.
 #ifndef MESHER_H
 #define MESHER_H
 #include <vector>
+#include "engine_constants.hpp"
 
 #include <stdint.h>
 
 // CS = chunk size (max 14)
-static constexpr int CS = 14;
+static constexpr int CS = CHUNK_AXIS1_SIZE - 2;
 
 // Padded chunk size
 static constexpr int CS_P = CS + 2;

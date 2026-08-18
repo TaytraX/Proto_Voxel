@@ -45,7 +45,7 @@ VSOutput vs_main(uint2 data, uint vertexID: SV_VertexID, uint face: SV_StartVert
     static const int cornerH[4] = { 0, 0, 1, 1 };
     static const int cornerIdx[6] = { 0, 1, 2, 0, 2, 3 };
 
-    uint faceIdx = face - 1;
+    uint faceIdx = (face >> 24);
 
     float3 origin = float3(
         (data.x >> 0)  & 0x3F,
@@ -62,6 +62,14 @@ VSOutput vs_main(uint2 data, uint vertexID: SV_VertexID, uint face: SV_StartVert
 
     origin[wDir] += (w * wMod * flipLookup[faceIdx]);
     origin[hDir] += (h * hMod);
+
+    float3 chunkPos = float3(
+        int8_t((face >> 16) & 0xFF),
+        int8_t((face >> 8) & 0xFF),
+        int8_t((face & 0xFF))
+    );
+
+    origin += (chunkPos * 14);
 
     VSOutput output;
     output.world_position = origin;

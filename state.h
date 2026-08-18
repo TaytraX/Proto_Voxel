@@ -58,8 +58,9 @@ class RenderState {
     void                        createSyncObjects();
 
 public:
-    RenderState(MeshData& mesh);
+    RenderState();
 	~RenderState();
-    void                        update(MeshData& data);
+	void						updateChunk(std::vector<std::pair<MeshData, glm::ivec3>>* data);
+    void                        update();
     void                        drawFrame();
 };
