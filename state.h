@@ -19,10 +19,12 @@ class RenderState {
     VkBuffer                       chunkVertBuffer;
     VmaAllocation   	           chunkVertBufferAllocation;
     VkPipelineLayout               pipelineLayout;
+    VkPipelineLayout               computePipelineLayout;
     VkDescriptorSetLayout          descriptorSetLayout;
     VkDescriptorPool               descriptorPool;
     VkDescriptorSet                descriptorSet;
     VkPipeline                     graphicsPipeline;
+    VkPipeline                     computePipeline;
     VkCommandPool                  commandPool;
     std::vector<VkCommandBuffer>   commandBuffers;
     std::vector<VkSemaphore>       imageAvailableSemaphores;
@@ -31,10 +33,11 @@ class RenderState {
     uint32_t                       currentFrame = 0;
     bool                           framebufferResized = false;
 
-
+    std::vector<VkDrawIndirectCommand> commands;
 
     // Render pass & pipeline
     void                        createGraphicsPipeline();
+    void                        createComputePipeline();
     VkShaderModule              createShaderModule(const std::vector<char>& code);
     //void 					    createSSBO();
     uint32_t                    findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -44,15 +47,16 @@ class RenderState {
     void                        createBufferDescriptor();
     void					    createVertexBufferStaged();
     void                        createIndirectBuffer();
-    void                        updateBuffer();
-    void                        updateIndirectBuffer();
+    void                        updateBuffer(glm::ivec3 chunkPos);
+    void                        updateIndirectBuffer(glm::ivec3 chunkPos);
+    void                        moveScene();
 
     void                        setupBufferDescriptor();
 
     // Framebuffers & commands
     void                        createCommandPool();
     void                        createCommandBuffers();
-    void                        recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+    void                        recordCommandBuffer(uint32_t imageIndex);
 
     // Sync & draw
     void                        createSyncObjects();
@@ -60,7 +64,7 @@ class RenderState {
 public:
     RenderState();
 	~RenderState();
-	void						updateChunk(std::vector<std::pair<MeshData, glm::ivec3>>* data);
+    void						updateChunk(glm::ivec3 chunkPos);
     void                        update();
     void                        drawFrame();
 };

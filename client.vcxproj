@@ -179,7 +179,10 @@
     <ClCompile Include="mesher.cpp" />
     <ClCompile Include="networking.cpp" />
     <ClCompile Include="scene.cpp" />
-    <ClCompile Include="state.cpp" />
+    <ClCompile Include="state.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="texture.cpp" />
     <ClCompile Include="vertex.cpp" />
   </ItemGroup>
@@ -189,6 +192,9 @@
   <ItemGroup>
     <Image Include="client.ico" />
     <Image Include="small.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\scene_update.slang" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

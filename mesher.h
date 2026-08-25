@@ -20,18 +20,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
- */
-
- //   Define BM_IMPLEMENTATION in exactly one source file to include the implementation
- //   and include the mesher.h without that define as often as needed
- //
- //   it could look like this
- //
- //   #define BM_IMPLEMENTATION
- //   #include "mesher.h"
- //
- //   There are other defines to control the behaviour of the library.
- //   * Define BM_VECTOR with your own vector implementation - otherwise it will use std::vector
+*/
 
 #ifndef MESHER_H
 #define MESHER_H
@@ -40,21 +29,10 @@ SOFTWARE.
 
 #include <stdint.h>
 
-// CS = chunk size (max 14)
-static constexpr int CS = CHUNK_AXIS1_SIZE - 2;
-
-// Padded chunk size
-static constexpr int CS_P = CS + 2;
-static constexpr int CS_2 = CS * CS;
-static constexpr int CS_P2 = CS_P * CS_P;
-static constexpr int CS_P3 = CS_P * CS_P * CS_P;
-
-
-
 // Dimensions du buffer voxel brut fourni par l'appelant (chunk cubique padded).
 // Ta formule i = y*(Tx*Tz) + Tx*z + x devient, avec Tx = Tz = CS_P :
-static constexpr int Tx = CS_P;
-static constexpr int Tz = CS_P;
+static constexpr int Tx = CHUNK_AXIS1_SIZE;
+static constexpr int Tz = CHUNK_AXIS1_SIZE;
 
 static const inline int voxelIndex(const int x, const int y, const int z) {
 	return (y * (Tx * Tz)) + (Tx * z) + x;

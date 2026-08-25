@@ -270,6 +270,7 @@ void Context::createLogicalDevice() {
     VkPhysicalDeviceVulkan12Features features12{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .pNext = &features13,
+        .shaderInt8 = VK_TRUE,
         .descriptorBindingVariableDescriptorCount = VK_TRUE,
         .runtimeDescriptorArray = VK_TRUE
     };
@@ -289,7 +290,7 @@ void Context::createLogicalDevice() {
             .multiDrawIndirect = VK_TRUE,
             .fillModeNonSolid = VK_TRUE,
             .samplerAnisotropy = VK_TRUE,
-            .shaderInt16 = VK_TRUE
+            .shaderInt16 = VK_TRUE,
         },
     };
 

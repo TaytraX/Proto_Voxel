@@ -9,9 +9,12 @@
 #include "state.h"
 #include "scene.h"
 #include "block.h"
+#include <functional>
 
 #define MAX_LOADSTRING 100
 bool keys[256] = {};
+bool mouseAdd = false;
+bool mouseRemove = false;
 
 // Variables globales :
 HINSTANCE hInst;                                // instance actuelle
@@ -38,39 +41,60 @@ glm::vec3 cameraForward;
 glm::vec3 cameraRight;
 float cameraSpeed = 0.04f; // Vitesse de déplacement de la caméra
 float cameraSensibility = 0.01f; // Vitesse de déplacement de la caméra
-MeshData mainThreadMeshData[3];
-
-uint32_t chunk[RENDER_DISTANCE * 2 + 1][RENDER_DISTANCE * 2 + 1][CHUNK_AXIS3_SIZE] = { 0 };
 
 glm::vec2 mouseDelta;
+glm::vec3 cameraWorldPos(0.0f, 1.0f, 0.0f);
 
-void processInput() {
+POINT center;
+
+void processInput(std::function<void(glm::ivec3)> updateChunkCallback) {
     camera.yaw += mouseDelta.x;
     camera.pitch -= mouseDelta.y;
 
     if (keys['W']) {
         camera.position += cameraForward * cameraSpeed;
+        cameraWorldPos += cameraForward * cameraSpeed;
     }
     if (keys['S']) {
         camera.position -= cameraForward * cameraSpeed;
+        cameraWorldPos -= cameraForward * cameraSpeed;
     }
     if (keys['A']) {
         camera.position -= cameraRight * cameraSpeed;
+        cameraWorldPos -= cameraRight * cameraSpeed;
     }
     if (keys['D']) {
         camera.position += cameraRight * cameraSpeed;
+        cameraWorldPos += cameraRight * cameraSpeed;
     }
     if (keys[VK_SPACE]) {
         camera.position.y += cameraSpeed;
+        cameraWorldPos.y += cameraSpeed;
     }
     if (keys[VK_SHIFT]) {
         camera.position.y -= cameraSpeed;
+        cameraWorldPos.y -= cameraSpeed;
     }
-    
+	if (keys[VK_TAB]) cameraSpeed += 0.01f;
+	else cameraSpeed = 0.04f;
     if (keys[VK_ESCAPE]) isRunning = false;
 
     mouseDelta.x = 0.0;
     mouseDelta.y = 0.0;
+    if (mouseAdd) {
+        auto chunkPos = addBlock(cameraWorldPos, cameraForward, 1);
+        auto chunkIndex = glm::ivec2(chunkPos.x + RENDER_DISTANCE, chunkPos.z + RENDER_DISTANCE);
+		mesh(scene::chunk[chunkIndex.x][chunkIndex.y], scene::chunkMap[chunkPos].first);
+        updateChunkCallback(chunkPos);
+		mouseAdd = false;
+    }
+    if (mouseRemove) {
+        auto chunkPos = removeBlock(cameraWorldPos, cameraForward);
+        auto chunkIndex = glm::ivec2(chunkPos.x + RENDER_DISTANCE, chunkPos.z + RENDER_DISTANCE);
+        mesh(scene::chunk[chunkIndex.x][chunkIndex.y], scene::chunkMap[chunkPos].first);
+        updateChunkCallback(chunkPos);
+        mouseRemove = false;
+    }
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -80,7 +104,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
 	AllocConsole();
 	FILE* pCout;
-	freopen_s(&pCout, "CONOUT$", "w", stdout);
+    freopen_s(&pCout, "CONOUT$", "w", stdout);
+    freopen_s(&pCout, "CONOUT$", "w", stderr);
 
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
@@ -104,18 +129,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             for (int x = 0; x < CHUNK_AXIS1_SIZE; ++x) {
                 for (int y = 1; y < 2; ++y) {
                     for (int z = 0; z < CHUNK_AXIS1_SIZE; ++z) {
-                        chunk[X][Z][voxelIndex(x, y, z)] = 2;
-                        if(X < RENDER_DISTANCE)chunk[X][Z][voxelIndex(1, 2, 1)] = 1;
+                        scene::chunk[X][Z][voxelIndex(x, y, z)] = 2;
+                        scene::chunk[X][Z][voxelIndex(1, 2, 1)] = 1;
                     }
                 }
             }
-
-    auto scene = scene::genScene(chunk);
+    scene::genScene();
 
     RenderState renderState;
-
-    renderState.updateChunk(&scene);
-
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_CLIENT));
 
     MSG msg;
@@ -123,13 +144,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Boucle de messages principale :
     while (isRunning)
     {
+        SetCursorPos(center.x, center.y);
         // Windows
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
             DispatchMessage(&msg);
         }
 
-        processInput();
+        processInput([&](glm::ivec3 chunkPos) {
+            renderState.updateChunk(chunkPos);
+        });
         renderState.update();
         renderState.drawFrame();
     }
@@ -203,10 +227,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    }
 
    GetClientRect(hWnd, &rect);
-
-   POINT center = { rect.right / 2, rect.bottom / 2 };
-
-   SetCursorPos(center.x, center.y);
+   center = { rect.right / 2, rect.bottom / 2 };
    ShowCursor(FALSE);
 
    ShowWindow(hWnd, nCmdShow);
@@ -280,10 +301,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             mouseDelta.x = mouse->lLastX * cameraSensibility;
             mouseDelta.y = mouse->lLastY * cameraSensibility;
+
+            mouseRemove = (mouse->usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN);
+            mouseAdd = (mouse->usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN);
         }
         else if (raw->header.dwType == RIM_TYPEKEYBOARD)
         {
-            //std::cout << "camera position is (" << camera.position.x << ", " << camera.position.y << ", " << camera.position.z << ')' << std::endl;
+            std::cout << "camera position is (" << camera.position.x << ", " << camera.position.y << ", " << camera.position.z << ')' << std::endl;
             if ((keyboard->Flags & RI_KEY_BREAK) == 0)
             {
                 keys[keyboard->VKey] = true;

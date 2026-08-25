@@ -45,15 +45,15 @@ VSOutput vs_main(uint2 data, uint vertexID: SV_VertexID, uint face: SV_StartVert
     static const int cornerH[4] = { 0, 0, 1, 1 };
     static const int cornerIdx[6] = { 0, 1, 2, 0, 2, 3 };
 
-    uint faceIdx = (face >> 24);
+    uint faceIdx = (face >> 27) & 0b111;
 
     float3 origin = float3(
-        (data.x >> 0)  & 0x3F,
-        (data.x >> 6)  & 0x3F,
-        (data.x >> 12) & 0x3F
-    );
+        (data.x >> 0) & 0x7F,
+        (data.x >> 7) & 0x7F,
+        (data.x >> 14) & 0x7F
+);
 
-    int w = int((data.x >> 18u) & 63u), h = int((data.x >> 24u) & 63u);
+    int w = int((data.x >> 21u) & 0x7Fu), h = int((data.y >> 24u) & 0x7Fu);
     uint wDir = (faceIdx & 2) >> 1, hDir = 2 - (faceIdx >> 2);
 
     int c = cornerIdx[vertexID];
@@ -64,19 +64,20 @@ VSOutput vs_main(uint2 data, uint vertexID: SV_VertexID, uint face: SV_StartVert
     origin[hDir] += (h * hMod);
 
     float3 chunkPos = float3(
-        int8_t((face >> 16) & 0xFF),
-        int8_t((face >> 8) & 0xFF),
+        int8_t((face >> 18) & 0xFF),
+        int8_t((face >> 9) & 0xFF),
         int8_t((face & 0xFF))
     );
 
-    origin += (chunkPos * 62);
+    origin += (chunkPos * 64);
 
     VSOutput output;
     output.world_position = origin;
-    output.clip_position = mul(camera.view_proj, float4(origin, 1.0));
     output.normal = normalLookup[faceIdx];
     output.uv = float2(wMod * w, hMod * h);
-    output.materialID = data.y - 1;
+    output.materialID = (data.y & 0xFFFFFFu) - 1;
+    
+    output.clip_position = mul(camera.view_proj, float4(origin, 1.0));
 
     return output;
 }
