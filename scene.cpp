@@ -80,7 +80,7 @@ namespace scene {
             }
         }
 
-        std::cout << "Num chunk " << outOfWindowChunkPos.size() << std::endl;
+        std::cout << "Num chuk " << outOfWindowChunkPos.size() << std::endl;
 
         for (glm::ivec3 key : outOfWindowChunkPos) {
             MeshData& meshData = chunkMeshMap[key].first;
