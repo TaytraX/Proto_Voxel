@@ -16,8 +16,8 @@ class RenderState {
 	VmaAllocator&                  allocator = context.allocator;
     VkBuffer                       indirectBuffer;
     VmaAllocation                  indirectBufferAlloc;
-    VkBuffer                       chunkVertBuffer;
-    VmaAllocation   	           chunkVertBufferAllocation;
+    VkBuffer                       sceneBuffer;
+    VmaAllocation   	           sceneBufferAllocation;
     VkPipelineLayout               pipelineLayout;
     VkPipelineLayout               computePipelineLayout;
     VkDescriptorSetLayout          descriptorSetLayout;
@@ -39,7 +39,6 @@ class RenderState {
     void                        createGraphicsPipeline();
     void                        createComputePipeline();
     VkShaderModule              createShaderModule(const std::vector<char>& code);
-    //void 					    createSSBO();
     uint32_t                    findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void                        createDescriptorPool();
     void                        createDescriptorSetLayout();
@@ -64,7 +63,7 @@ class RenderState {
 public:
     RenderState();
 	~RenderState();
-    void						updateChunk(glm::ivec3 chunkPos);
+    void						updateChunk(glm::ivec3 chunkPos, bool includePosition = false);
     void                        update();
     void                        drawFrame();
 };

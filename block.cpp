@@ -5,20 +5,20 @@
 #include "mesher.h"
 #include "scene.h"
 
-glm::ivec2 getChunkIndex(glm::vec3 position) {
-	return glm::ivec2(
-		static_cast<int>(std::floor(position.x / CHUNK_AXIS1_SIZE)) + RENDER_DISTANCE,
-		static_cast<int>(std::floor(position.z / CHUNK_AXIS1_SIZE)) + RENDER_DISTANCE
-	);
+glm::ivec3 getChunkPos(glm::vec3 position) {
+	return {
+		(int)floor(position.x / CHUNK_AXIS1_SIZE),
+		(int)floor(position.y / CHUNK_AXIS1_SIZE),
+		(int)floor(position.z / CHUNK_AXIS1_SIZE)
+	};
 }
 
 uint32_t& getBlock(int x, int y, int z) {
 	// Indice du chunk dans le tableau (déjà décalé par RENDER_DISTANCE par getChunkIndex)
-	glm::ivec2 chunkIdx = getChunkIndex(glm::vec3(x, y, z));
+	auto chunkPos = getChunkPos(glm::vec3(x, y, z));
 
-	// Coordonnée du chunk "brute" (non décalée), pour retrouver l'origine monde du chunk
-	int chunkOriginX = (chunkIdx.x - RENDER_DISTANCE) * CHUNK_AXIS1_SIZE;
-	int chunkOriginZ = (chunkIdx.y - RENDER_DISTANCE) * CHUNK_AXIS1_SIZE;
+	int chunkOriginX = chunkPos.x * CHUNK_AXIS1_SIZE;
+	int chunkOriginZ = chunkPos.z * CHUNK_AXIS1_SIZE;
 
 	// Coordonnées locales du bloc, relatives au coin bas-gauche-avant du chunk
 	// (toujours positives grâce à la division "floor" faite dans getChunkIndex)
@@ -26,7 +26,7 @@ uint32_t& getBlock(int x, int y, int z) {
 	int localY = y;
 	int localZ = z - chunkOriginZ;
 
-	return scene::chunk[chunkIdx.x][chunkIdx.y][voxelIndex(localZ, localY, localX)];
+	return scene::chunkMap[chunkPos][voxelIndex(localZ, localY, localX)];
 }
 
 glm::ivec3 addBlock(glm::vec3& pos, glm::vec3& forward, uint32_t blockID) {
@@ -60,7 +60,7 @@ glm::ivec3 addBlock(glm::vec3& pos, glm::vec3& forward, uint32_t blockID) {
 			int localX = (int)floor(x - xinc) - chunkOriginX;
 			int localZ = (int)floor(z - zinc) - chunkOriginZ;
 
-			scene::chunkMap[chunkPos].first.opaqueMask[(int)(y - yinc) * CHUNK_AXIS1_SIZE + localX] |= (1ull << localZ);
+			scene::chunkMeshMap[chunkPos].first.opaqueMask[(int)floor(y - yinc) * CHUNK_AXIS1_SIZE + localX] |= (1ull << localZ);
 			return { chunkPos };
 		}
 	}
@@ -95,7 +95,7 @@ glm::ivec3 removeBlock(glm::vec3& pos, glm::vec3& forward) {
 			int localX = (int)floor(x) - chunkOriginX;
 			int localZ = (int)floor(z) - chunkOriginZ;
 
-			scene::chunkMap[chunkPos].first.opaqueMask[(int)y * CHUNK_AXIS1_SIZE + localX] &= ~(1ull << localZ);
+			scene::chunkMeshMap[chunkPos].first.opaqueMask[(int)floor(y) * CHUNK_AXIS1_SIZE + localX] &= ~(1ull << localZ);
 			return { chunkPos };
 		}
 	}

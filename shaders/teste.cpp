@@ -1,12 +1,13 @@
 #include <iostream>
-#include <vector>
+#include <string>
 #include <cstdint>
-#include <unordered_map>
+#include <queue>
 
-
-
+std::queue<int> g;
 int main() {
-    float d = -0.71;
-    std::cout << std::fmod(d, 64) << std::endl;
+    for(int i = 1; i < 20; i++) g.push(i);
+
+    std::cout << g.empty() << std::endl;
+
     return 0;
 }

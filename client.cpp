@@ -83,15 +83,14 @@ void processInput(std::function<void(glm::ivec3)> updateChunkCallback) {
     mouseDelta.y = 0.0;
     if (mouseAdd) {
         auto chunkPos = addBlock(cameraWorldPos, cameraForward, 1);
-        auto chunkIndex = glm::ivec2(chunkPos.x + RENDER_DISTANCE, chunkPos.z + RENDER_DISTANCE);
-		mesh(scene::chunk[chunkIndex.x][chunkIndex.y], scene::chunkMap[chunkPos].first);
+		mesh(scene::chunkMap[chunkPos], scene::chunkMeshMap[chunkPos].first);
         updateChunkCallback(chunkPos);
 		mouseAdd = false;
     }
     if (mouseRemove) {
         auto chunkPos = removeBlock(cameraWorldPos, cameraForward);
         auto chunkIndex = glm::ivec2(chunkPos.x + RENDER_DISTANCE, chunkPos.z + RENDER_DISTANCE);
-        mesh(scene::chunk[chunkIndex.x][chunkIndex.y], scene::chunkMap[chunkPos].first);
+        mesh(scene::chunkMap[chunkPos], scene::chunkMeshMap[chunkPos].first);
         updateChunkCallback(chunkPos);
         mouseRemove = false;
     }
@@ -124,17 +123,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    for (int X = 0; X <= RENDER_DISTANCE * 2; X++)
-        for (int Z = 0; Z <= RENDER_DISTANCE * 2; Z++)
+    for (int X = -RENDER_DISTANCE; X <= RENDER_DISTANCE; X++)
+        for (int Z = -RENDER_DISTANCE; Z <= RENDER_DISTANCE; Z++) {
+            if (floor(std::sqrt(X * X + Z * Z)) > RENDER_DISTANCE) continue;
             for (int x = 0; x < CHUNK_AXIS1_SIZE; ++x) {
                 for (int y = 1; y < 2; ++y) {
                     for (int z = 0; z < CHUNK_AXIS1_SIZE; ++z) {
-                        scene::chunk[X][Z][voxelIndex(x, y, z)] = 2;
-                        scene::chunk[X][Z][voxelIndex(1, 2, 1)] = 1;
+                        scene::chunkMap[{X, 0, Z}][voxelIndex(x, y, z)] = 2;
+                        scene::chunkMap[{X, 0, Z}][voxelIndex(1, 2, 1)] = 1;
                     }
                 }
             }
+
+        }
     scene::genScene();
+    scene::startWorker();
 
     RenderState renderState;
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_CLIENT));
@@ -157,6 +160,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         renderState.update();
         renderState.drawFrame();
     }
+    scene::stopWorker();
     return (int) msg.wParam;
 }
 
@@ -307,7 +311,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         else if (raw->header.dwType == RIM_TYPEKEYBOARD)
         {
-            std::cout << "camera position is (" << camera.position.x << ", " << camera.position.y << ", " << camera.position.z << ')' << std::endl;
+            //std::cout << "camera position is (" << camera.position.x << ", " << camera.position.y << ", " << camera.position.z << ')' << std::endl;
             if ((keyboard->Flags & RI_KEY_BREAK) == 0)
             {
                 keys[keyboard->VKey] = true;

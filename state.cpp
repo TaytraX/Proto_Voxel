@@ -4,12 +4,10 @@
 #include <iostream>
 #include "scene.h"
 
-Camera 					       camera(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(90.0f), glm::radians(0.0f));
+Camera 					       camera(glm::vec3(32.0f, 1.0f, 32.0f), glm::radians(90.0f), glm::radians(0.0f));
 Projection 			           projection(800, 600, glm::radians(45.0f), 0.1f, (RENDER_DISTANCE * CHUNK_AXIS1_SIZE) * 1.5f * sqrt(2.0f));
 CameraUniform				   cameraUniform;
 CameraBuffer				   cameraUniformBuffer;
-
-bool move = false;
 
 // ── pipeline ────────────────────────────────────────────────────
 
@@ -331,7 +329,7 @@ void RenderState::recordCommandBuffer(uint32_t imageIndex) {
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 2, set, 0, nullptr);
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &chunkVertBuffer, offsets);
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &sceneBuffer, offsets);
     vkCmdDrawIndirect(commandBuffer, indirectBuffer, 0, 6 * (uint32_t)scene::chunkMap.size(), sizeof(VkDrawIndirectCommand));
 
     vkCmdEndRendering(commandBuffer);
@@ -453,8 +451,8 @@ void RenderState::createVertexBufferStaged() {
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
     vmaCreateBuffer(allocator, &bufferInfo, &allocInfo,
-        &chunkVertBuffer, &chunkVertBufferAllocation, nullptr);
-    std::cout << "Updating vertex buffer..." << std::endl;
+        &sceneBuffer, &sceneBufferAllocation, nullptr);
+   // std::cout << "Updating vertex buffer..." << std::endl;
 
     // Staging buffer (CPU -> visible)
     VkBuffer stagingBuffer;
@@ -477,13 +475,13 @@ void RenderState::createVertexBufferStaged() {
     for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
         for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
             if (scene::chunkMap.contains(glm::ivec3(x, 0, z))) {
-                const auto& data = scene::chunkMap[glm::ivec3(x, 0, z)];
+                const auto& data = scene::chunkMeshMap[glm::ivec3(x, 0, z)];
 				//std::cout << "Copying data for chunk at position: (" << x << ", 0, " << z << ") to index : " << data.second << std::endl;
                 memcpy((char*)stagingResultInfo.pMappedData + sizeof(uint64_t) * 1000 * data.second, data.first.vertices->data(), sizeof(uint64_t) * 1000);
             }
         }
     }
-    std::cout << "Memory copied to staging buffer" << std::endl;
+    //std::cout << "Memory copied to staging buffer" << std::endl;
     VkCommandBufferAllocateInfo cbAllocInfo{};
     cbAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cbAllocInfo.commandPool = commandPool;
@@ -500,7 +498,7 @@ void RenderState::createVertexBufferStaged() {
 
     VkBufferCopy copyRegion{};
     copyRegion.size = bufferSize;
-    vkCmdCopyBuffer(cmd, stagingBuffer, chunkVertBuffer, 1, &copyRegion);
+    vkCmdCopyBuffer(cmd, stagingBuffer, sceneBuffer, 1, &copyRegion);
 
     vkEndCommandBuffer(cmd);
 
@@ -516,7 +514,7 @@ void RenderState::createVertexBufferStaged() {
     vkFreeCommandBuffers(context.device, commandPool, 1, &cmd);
     vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
-    std::cout << "Buffer updated" << std::endl;
+    //std::cout << "Buffer updated" << std::endl;
 }
 
 void RenderState::updateBuffer(glm::ivec3 chunkPos) {
@@ -541,17 +539,11 @@ void RenderState::updateBuffer(glm::ivec3 chunkPos) {
     vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
         &stagingBuffer, &stagingAllocation, &stagingResultInfo);
 
-    // scene::chunkMap[chunkPos] a déjà été réécrit avec le mesh frais par
-    // updateChunk() AVANT cet appel -> cette lecture récupère bien la
-    // géométrie à jour, plus l'ancienne figée depuis genScene().
-    // Le STAGING ne contient qu'UN SEUL slot -> on y écrit à l'offset 0.
-    // C'est copyRegion.dstOffset, plus bas, qui place ces données au bon
-    // endroit dans chunkVertBuffer (le vrai buffer multi-chunks).
-    const auto& data = scene::chunkMap[chunkPos];
-    std::cout << "Updating chunk at index " << scene::chunkMap[chunkPos].second << ": (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
+    const auto& data = scene::chunkMeshMap[chunkPos];
+    //std::cout << "Updating chunk at index " << scene::chunkMeshMap[chunkPos].second << ": (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
     memcpy(stagingResultInfo.pMappedData, data.first.vertices->data(), bufferSize);
 
-    std::cout << "Memory copied to staging buffer" << std::endl;
+    //std::cout << "Memory copied to staging buffer" << std::endl;
     VkCommandBufferAllocateInfo cbAllocInfo{};
     cbAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cbAllocInfo.commandPool = commandPool;
@@ -570,7 +562,7 @@ void RenderState::updateBuffer(glm::ivec3 chunkPos) {
     copyRegion.srcOffset = 0;
     copyRegion.dstOffset = sizeof(uint64_t) * 1000 * data.second;
     copyRegion.size = bufferSize;
-    vkCmdCopyBuffer(cmd, stagingBuffer, chunkVertBuffer, 1, &copyRegion);
+    vkCmdCopyBuffer(cmd, stagingBuffer, sceneBuffer, 1, &copyRegion);
 
     vkEndCommandBuffer(cmd);
 
@@ -586,12 +578,11 @@ void RenderState::updateBuffer(glm::ivec3 chunkPos) {
     vkFreeCommandBuffers(context.device, commandPool, 1, &cmd);
     vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 
-    std::cout << "Vertex buffer updated for chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
+    //std::cout << "Vertex buffer updated for chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
 }
 
 void RenderState::updateIndirectBuffer(glm::ivec3 chunkPos) {
     VkDeviceSize bufferSize = sizeof(VkDrawIndirectCommand) * 6;
-
 
     // 1. Staging buffer (CPU -> visible)
     VkBuffer stagingBuffer;
@@ -611,10 +602,7 @@ void RenderState::updateIndirectBuffer(glm::ivec3 chunkPos) {
     vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
         &stagingBuffer, &stagingAllocation, &stagingResultInfo);
 
-    // Le STAGING ne contient qu'UN SEUL slot (6 commandes) -> écrit à
-    // l'offset 0. C'est copyRegion.dstOffset, plus bas, qui place ces
-    // données au bon slot dans indirectBuffer.
-    const uint32_t slot = scene::chunkMap[chunkPos].second;
+    const uint32_t slot = scene::chunkMeshMap[chunkPos].second;
     memcpy(stagingResultInfo.pMappedData, &commands[6 * slot], (size_t)bufferSize);
     vmaFlushAllocation(
         allocator,
@@ -638,21 +626,13 @@ void RenderState::updateIndirectBuffer(glm::ivec3 chunkPos) {
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &beginInfo);
 
-    std::vector<VkBufferCopy> copyRegions;
-    copyRegions.reserve(12); // 2 régions * 6 commandes
+    VkBufferCopy copyRegions{
+        .srcOffset = 0,
+        .dstOffset = bufferSize * scene::chunkMeshMap[chunkPos].second,
+        .size = bufferSize
+    };
 
-    for (int i = 0; i < 6; i++) {
-        VkDeviceSize base = i * sizeof(VkDrawIndirectCommand);
-        VkDeviceSize dstBase = (6 * slot + i) * sizeof(VkDrawIndirectCommand);
-
-        // vertexCount + instanceCount (8 premiers octets)
-        copyRegions.push_back({ base + 0, dstBase + 0, 8 });
-        // firstInstance seulement (on saute firstVertex, offset 8-12)
-        copyRegions.push_back({ base + 12, dstBase + 12, 4 });
-    }
-
-    vkCmdCopyBuffer(cmd, stagingBuffer, indirectBuffer,
-        (uint32_t)copyRegions.size(), copyRegions.data());
+    vkCmdCopyBuffer(cmd, stagingBuffer, indirectBuffer, 1, &copyRegions);
 
     vkEndCommandBuffer(cmd);
 
@@ -662,13 +642,11 @@ void RenderState::updateIndirectBuffer(glm::ivec3 chunkPos) {
     submitInfo.pCommandBuffers = &cmd;
 
     vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(context.graphicsQueue); // à remplacer par un fence en prod
+    vkQueueWaitIdle(context.graphicsQueue);
 
     // 4. Nettoyage
     vkFreeCommandBuffers(context.device, commandPool, 1, &cmd);
     vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
-
-	//std::cout << "Indirect buffer updated for chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -773,12 +751,12 @@ void RenderState::createIndirectBuffer() {
     for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
         for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
             if (!scene::chunkMap.contains(glm::ivec3(x, 0, z))) continue;
-            const auto& data = scene::chunkMap[glm::ivec3(x, 0, z)].first;
-            const uint32_t globalQuadOffset = 1000 * scene::chunkMap[glm::ivec3(x, 0, z)].second;
+            const auto& data = scene::chunkMeshMap[glm::ivec3(x, 0, z)].first;
+            const uint32_t globalQuadOffset = 1000 * scene::chunkMeshMap[glm::ivec3(x, 0, z)].second;
             //std::cout << "Iterate for chunk at position: (" << x << ", " << 0 << ", " << z << ") to index " << scene::chunkMap[glm::ivec3(x, 0, z)].second << std::endl;
             for (int i = 0; i < 6; i++) {
                 //std::cout << "Command " << scene::chunkMap[glm::ivec3(x, 0, z)].second * 6 + i << std::endl;
-                commands[scene::chunkMap[glm::ivec3(x, 0, z)].second * 6 + i] = VkDrawIndirectCommand{
+                commands[scene::chunkMeshMap[glm::ivec3(x, 0, z)].second * 6 + i] = VkDrawIndirectCommand{
                     .vertexCount = 6,
                     .instanceCount = (unsigned)data.faceVertexLength[i],
                     .firstVertex = (unsigned)(
@@ -970,28 +948,45 @@ void RenderState::createDescriptorSets() {
 void RenderState::update() {
     cameraUniformBuffer.update(camera, projection);
     if (camera.position.x > CHUNK_AXIS1_SIZE || camera.position.x < 0 ||
-        camera.position.y > CHUNK_AXIS1_SIZE || camera.position.y < 0 ||
-        camera.position.z > CHUNK_AXIS1_SIZE || camera.position.y < 0) {
+        camera.position.z > CHUNK_AXIS1_SIZE || camera.position.z < 0) {
 
-        if (camera.position.x > CHUNK_AXIS1_SIZE) camera.position.x -= CHUNK_AXIS1_SIZE; else if (camera.position.x < 0) camera.position.x += CHUNK_AXIS1_SIZE;
-        if (camera.position.y > CHUNK_AXIS1_SIZE) camera.position.y -= CHUNK_AXIS1_SIZE; else if (camera.position.y < 0) camera.position.y += CHUNK_AXIS1_SIZE;
-        if (camera.position.z > CHUNK_AXIS1_SIZE) camera.position.z -= CHUNK_AXIS1_SIZE; else if (camera.position.z < 0) camera.position.z += CHUNK_AXIS1_SIZE;
         moveScene();
 
-        cameraUniformBuffer.update(camera, projection);
+        if (camera.position.x > CHUNK_AXIS1_SIZE) { camera.position.x -= CHUNK_AXIS1_SIZE; scene::centralChunk.x += 1; }
+        else if (camera.position.x < 0) { camera.position.x += CHUNK_AXIS1_SIZE; scene::centralChunk.x -= 1; }
+        if (camera.position.z > CHUNK_AXIS1_SIZE) { camera.position.z -= CHUNK_AXIS1_SIZE; scene::centralChunk.z += 1; }
+        else if (camera.position.z < 0) { camera.position.z += CHUNK_AXIS1_SIZE; scene::centralChunk.z -= 1; }
+
+        scene::notifyMoved();
+    }
+    glm::ivec3 pos(0);
+    auto l = scene::getReadyChunk(pos);
+    if (l) {
+        updateChunk(pos, true);
     }
 }
 
-void RenderState::updateChunk(glm::ivec3 chunkPos) {
+void RenderState::updateChunk(glm::ivec3 chunkPos, bool includePosition) {
     if (!scene::chunkMap.contains(chunkPos)) throw std::runtime_error("chunk not existe");
-    auto meshData = scene::chunkMap[chunkPos].first;
-	std::cout << "Updating chunk at index " << scene::chunkMap[chunkPos].second << ": (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
+    const auto& meshData = scene::chunkMeshMap[chunkPos].first; // const& : évite la copie du MeshData
+    const size_t slot = scene::chunkMeshMap[chunkPos].second;
+
     for (int i = 0; i < 6; i++) {
-        const uint32_t globalQuadOffset = 1000 * scene::chunkMap[chunkPos].second;
-        commands[scene::chunkMap[chunkPos].second * 6 + i] = VkDrawIndirectCommand {
+        const uint32_t globalQuadOffset = 1000 * (uint32_t)slot;
+        uint32_t firstVertex = commands[slot * 6 + i].firstVertex; // conservé par défaut
+
+        if (includePosition) {
+            glm::ivec3 rel = -chunkPos; // position relative au chunk courant du joueur
+            firstVertex = ((uint32_t)(i & 0b111) << 27)
+                | ((uint32_t)(rel.x & 0x1FF) << 18)
+                | ((uint32_t)(0 & 0x1FF) << 9)
+                | (uint32_t)(rel.z & 0x1FF);
+        }
+
+        commands[slot * 6 + i] = VkDrawIndirectCommand{
             .vertexCount = 6,
             .instanceCount = (unsigned)meshData.faceVertexLength[i],
-            .firstVertex = 0,
+            .firstVertex = firstVertex,
             .firstInstance = globalQuadOffset + (unsigned)meshData.faceVertexBegin[i]
         };
     }
@@ -1006,8 +1001,8 @@ RenderState::~RenderState() {
     vkDestroyPipeline(context.device, computePipeline, nullptr);
     vkDestroyPipelineLayout(context.device, computePipelineLayout, nullptr);
 
-    vkDestroyBuffer(context.device, chunkVertBuffer, nullptr);
-    vmaFreeMemory(allocator, chunkVertBufferAllocation);
+    vkDestroyBuffer(context.device, sceneBuffer, nullptr);
+    vmaFreeMemory(allocator, sceneBufferAllocation);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(context.device, renderFinishedSemaphores[i], nullptr);
