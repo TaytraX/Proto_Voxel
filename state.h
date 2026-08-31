@@ -63,7 +63,7 @@ class RenderState {
 public:
     RenderState();
 	~RenderState();
-    void						updateChunk(glm::ivec3 chunkPos, bool includePosition = false);
+    void						updateChunk(glm::ivec3 chunkPos);
     void                        update();
     void                        drawFrame();
 };

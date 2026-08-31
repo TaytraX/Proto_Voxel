@@ -24,23 +24,28 @@ int3 get_moveDir() {
     );
 }
 
+static bool outsideWindow(int3 pos, int3 center) {
+    return floor(sqrt(pow((center.x - pos.x), 2) + pow((center.z - pos.z), 2))) > 16;
+}
+
 [shader("compute")]
 void move_scene(uint3 dispatchThreadID: SV_DispatchThreadID) {
     uint chunkIndex = dispatchThreadID.x;
 
     int3 pos = int3(
-        int8_t((cmds[chunkIndex].firstVertex >> 18) & 0x1FF),
-        int8_t((cmds[chunkIndex].firstVertex >> 9) & 0x1FF),
-        int8_t(cmds[chunkIndex].firstVertex & 0x1FF)
+        int8_t((cmds[chunkIndex].firstVertex >> 16) & 0xFF),
+        int8_t((cmds[chunkIndex].firstVertex >> 8) & 0xFF),
+        int8_t(cmds[chunkIndex].firstVertex & 0xFF)
     );
     cmds[chunkIndex].firstVertex = 0ull;
 
     int3 move_dir = get_moveDir();
 
-    pos -= move_dir;
+    if (outsideWindow(pos, move_dir)) pos = -pos;
+    else pos -= move_dir;
 
-    cmds[chunkIndex].firstVertex = ((chunkIndex % 6) & 0b111) << 27 
-    | (pos.x & 0x1FF) << 18 
-    | (pos.y & 0x1FF) << 9 
-    | (pos.z & 0x1FF);
+    cmds[chunkIndex].firstVertex = ((chunkIndex % 6) & 0b111) << 24 
+    | (pos.x & 0xFF) << 16 
+    | (pos.y & 0xFF) << 8
+    | (pos.z & 0xFF);
 }

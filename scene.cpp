@@ -27,6 +27,7 @@ namespace scene {
 
     std::queue<glm::ivec3> chunkQueue;
     std::mutex queueMutex;
+    bool did = false;
 
     static std::thread worker;
     static std::atomic<bool> running{ false };
@@ -37,7 +38,10 @@ namespace scene {
     static std::mutex readyMutex;
 
     static bool outsideWindow(glm::ivec3 pos) {
-        return floor(std::sqrt(pow((centralChunk.x - pos.x), 2) + pow((centralChunk.z - pos.z), 2))) > RENDER_DISTANCE;
+        int dx = centralChunk.x - pos.x;
+        int dz = centralChunk.z - pos.z;
+        constexpr int R1sq = (RENDER_DISTANCE + 1) * (RENDER_DISTANCE + 1);
+        return (dx * dx + dz * dz) >= R1sq;
     }
 
 	void genScene() {
@@ -69,26 +73,29 @@ namespace scene {
     void extendScene() {
         auto start = std::chrono::steady_clock::now();
         std::lock_guard<std::mutex> lock(mapMutex);
-        // direction = (±1,0,0) ou (0,0,±1) : un seul axe à la fois
+        
         std::vector<glm::ivec3> outOfWindowChunkPos;
-        for (int X = -CHUNK_AXIS1_SIZE; X <= CHUNK_AXIS1_SIZE; X++) {
-            for (int Z = -CHUNK_AXIS1_SIZE; Z <= CHUNK_AXIS1_SIZE; Z++) {
-                if (chunkMap.contains({ X, 0, Z }) && outsideWindow({ X, 0, Z })) {
-                    outOfWindowChunkPos.push_back({ X, 0, Z });
-                   // if (outOfWindowChunkPos.size() == CHUNK_AXIS1_SIZE * 2 + 1) break;
-                }
+        outOfWindowChunkPos.reserve(RENDER_DISTANCE * 2 + 1);
+
+        for (auto& [key, voxels] : chunkMap) {
+            if (outsideWindow(key)) {
+                outOfWindowChunkPos.push_back(key);
             }
         }
+        auto filtre_end = std::chrono::steady_clock::now();
 
         std::cout << "Num chuk " << outOfWindowChunkPos.size() << std::endl;
-
+        std::chrono::steady_clock::time_point vexel_update;
         for (glm::ivec3 key : outOfWindowChunkPos) {
             MeshData& meshData = chunkMeshMap[key].first;
 
             // Installe les nouvelles données de voxels
-            for (int i = 0; i < CHUNK_AXIS3_SIZE; i++) {
-                chunkMap[key][i] = newChunk[i];
-            }
+            std::memcpy(
+                chunkMap[key],
+                newChunk,
+                CHUNK_AXIS3_SIZE * sizeof(newChunk[0])
+            );
+            vexel_update = std::chrono::steady_clock::now();
 
             // Régénère uniquement opaqueMask (le seul élément qui doit l'être)
             delete[] meshData.opaqueMask;
@@ -101,13 +108,30 @@ namespace scene {
                 chunkQueue.push(key);
             }
         }
+        did = true;
         auto end = std::chrono::steady_clock::now();
 
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             end - start
         );
 
-        std::cout << "Temps écoulés : " << duration.count() << " ms\n";
+        auto filtre_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            filtre_end - start
+        );
+
+        auto update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - filtre_end
+        );
+
+        auto voxelUpdate_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            vexel_update - filtre_end
+        );
+
+        auto remeshing_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - vexel_update
+        );
+
+        std::cout << "Temps écoulés : " << total_duration.count() << " ms\n filtrage: " << filtre_duration.count() << "ms \n    vexels update: " << voxelUpdate_duration.count() << " ms\n    remeshing: " << remeshing_duration.count() << " ms\n update: " << update_duration.count() << "ms\n";
     }
 
     static void workerLoop() {
@@ -115,7 +139,7 @@ namespace scene {
             {
                 std::unique_lock<std::mutex> lock(cvMutex);
                 cv.wait(lock, [] { return moveRequested || !running; });
-                if (!running) return;
+                if (!running || did) return;
                 moveRequested = !chunkQueue.empty();
             }
 
