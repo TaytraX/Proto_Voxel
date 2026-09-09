@@ -58,7 +58,7 @@ struct MeshData {
 // @param[out] meshData: meshData.opaqueMask must already be allocated with
 // CS_P2 elements. This function overwrites it completely (no need to
 // zero-initialize beforehand).
-uint64_t* fillOpaqueMask(const uint32_t* voxels);
+uint64_t* fillOpaqueMask(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels);
 
 // @param[in] voxels: The input data includes duplicate edge data from neighboring chunks which is used
 // for visibility culling. For optimal performance, your world data should already be structured
@@ -66,6 +66,6 @@ uint64_t* fillOpaqueMask(const uint32_t* voxels);
 // Input data is ordered in ZXY and is 64^3 which results in a 62^3 mesh.
 //
 // @param[out] meshData The allocated vertices in MeshData with a length of meshData.vertexCount.
-void mesh(const uint32_t* voxels, MeshData& meshData);
+void mesh(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels, MeshData& meshData);
 
 #endif // MESHER_H

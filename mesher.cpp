@@ -1,12 +1,13 @@
 #include "mesher.h"
 #include <iostream>
+#include <array>
 
 // Remappe les paramètres génériques (a, b, c) de l'algorithme — dont le sens
 // change selon l'axe balayé — vers de vraies coordonnées (x, y, z), puis
 // appelle voxelIndex(). C'est mathématiquement équivalent à l'ancienne
 // version codée en dur (b + a*CS_P + c*CS_P2, etc.), mais explicite désormais
 // la correspondance avec ta formule au lieu de la laisser implicite.
-static inline const int getAxisIndex(const int axis, const int a, const int b, const int c) {
+static inline const size_t getAxisIndex(const int axis, const int a, const int b, const int c) {
     if (axis == 0) return voxelIndex(b, c, a);
     else if (axis == 1) return voxelIndex(b, a, c);
     else return voxelIndex(c, b, a);
@@ -31,7 +32,7 @@ static inline const uint64_t getQuad(uint64_t x, uint64_t y, uint64_t z, uint64_
 
 constexpr uint64_t P_MASK = UINT64_MAX;
 
-uint64_t* fillOpaqueMask(const uint32_t* voxels) {
+uint64_t* fillOpaqueMask(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels) {
     uint64_t* opaqueMask = new uint64_t[CHUNK_AXIS2_SIZE] { 0 };
 
     // Le 3e axe (c) est compressé dans les bits d'un même uint64_t.
@@ -58,7 +59,7 @@ uint64_t* fillOpaqueMask(const uint32_t* voxels) {
     return opaqueMask;
 }
 
-void mesh(const uint32_t* voxels, MeshData& meshData) {
+void mesh(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels, MeshData& meshData) {
     meshData.vertexCount = 0;
     int vertexI = 0;
 

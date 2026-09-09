@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <thread>
 #include <mutex>
+#include "util.hpp"
 #include <chrono>
 
 uint32_t newChunk[CHUNK_AXIS3_SIZE]{};
@@ -21,21 +22,17 @@ void generateFlatChunk() {
 
 namespace scene {
 	glm::ivec3 centralChunk(0);
-    static std::mutex mapMutex;
-	std::unordered_map<glm::ivec3, std::pair<MeshData, size_t>> chunkMeshMap;
-	std::unordered_map<glm::ivec3, uint32_t[CHUNK_AXIS3_SIZE]> chunkMap;
+	ankerl::unordered_dense::segmented_map<glm::ivec3, MeshData> chunkMeshMap;
+	ankerl::unordered_dense::segmented_map<glm::ivec3, std::array<uint32_t, CHUNK_AXIS3_SIZE>> chunkMap;
 
     std::queue<glm::ivec3> chunkQueue;
     std::mutex queueMutex;
-    bool did = false;
 
     static std::thread worker;
     static std::atomic<bool> running{ false };
     static std::mutex cvMutex;
     static std::condition_variable cv;
     static bool moveRequested = false;
-
-    static std::mutex readyMutex;
 
     static bool outsideWindow(glm::ivec3 pos) {
         int dx = centralChunk.x - pos.x;
@@ -45,93 +42,62 @@ namespace scene {
     }
 
 	void genScene() {
-		size_t index = 0;
-		for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
-			for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
-				if (floor(std::sqrt(x * x + z * z)) > RENDER_DISTANCE) continue;
-				glm::ivec3 chunkPos(x, 0, z);
-				MeshData meshData{
-					.faceMasks = new uint64_t[CHUNK_AXIS2_SIZE * 6]{ 0 },
-					.opaqueMask = fillOpaqueMask(chunkMap[chunkPos]),
-					.forwardMerged = new uint8_t[CHUNK_AXIS2_SIZE]{ 0 },
-					.rightMerged = new uint8_t[CHUNK_AXIS1_SIZE + 2]{ 0 },
-					.vertices = new std::vector<uint64_t>(1000),
-					.maxVertices = 1000
-				};
+		for (const auto& [chunkPos, voxels] : chunkMap) {
 
-				//std::cout << "chunk [" << index << "]" << std::endl;
-				mesh(chunkMap[chunkPos], meshData);
-				chunkMeshMap[chunkPos] = { meshData, index };
-				index++;
-			}
+			std::cout << "Index of chunk at position (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") is " << index_of(chunkMap, chunkPos) << std::endl;
+            MeshData meshData{
+                .faceMasks = new uint64_t[CHUNK_AXIS2_SIZE * 6]{ 0 },
+                .opaqueMask = fillOpaqueMask(chunkMap[chunkPos]),
+                .forwardMerged = new uint8_t[CHUNK_AXIS2_SIZE]{ 0 },
+                .rightMerged = new uint8_t[CHUNK_AXIS1_SIZE]{ 0 },
+                .vertices = new std::vector<uint64_t>(1000),
+                .maxVertices = 1000
+            };
+            
+            mesh(voxels, meshData);
+            chunkMeshMap[chunkPos] = meshData;
 		}
-
-		chunkMap.reserve(chunkMap.size());
+		std::cout << "Scene generated with " << chunkMap.size() << " chunks." << std::endl;
         generateFlatChunk();
 	}
 
     void extendScene() {
-        auto start = std::chrono::steady_clock::now();
-        std::lock_guard<std::mutex> lock(mapMutex);
-        
         std::vector<glm::ivec3> outOfWindowChunkPos;
         outOfWindowChunkPos.reserve(RENDER_DISTANCE * 2 + 1);
 
-        for (auto& [key, voxels] : chunkMap) {
+        for (const auto& [key, voxels] : chunkMap) {
             if (outsideWindow(key)) {
                 outOfWindowChunkPos.push_back(key);
             }
         }
-        auto filtre_end = std::chrono::steady_clock::now();
 
-        std::cout << "Num chuk " << outOfWindowChunkPos.size() << std::endl;
-        std::chrono::steady_clock::time_point vexel_update;
+        std::cout << "Num chunks out of window: " << outOfWindowChunkPos.size() << std::endl;
+        
         for (glm::ivec3 key : outOfWindowChunkPos) {
-            MeshData& meshData = chunkMeshMap[key].first;
+            MeshData& meshData = chunkMeshMap[key];
 
             // Installe les nouvelles données de voxels
             std::memcpy(
-                chunkMap[key],
+                chunkMap[key].data(),
                 newChunk,
-                CHUNK_AXIS3_SIZE * sizeof(newChunk[0])
+                CHUNK_MEM_SIZE
             );
-            vexel_update = std::chrono::steady_clock::now();
 
             // Régénère uniquement opaqueMask (le seul élément qui doit l'être)
             delete[] meshData.opaqueMask;
             meshData.opaqueMask = fillOpaqueMask(chunkMap[key]);
 
+            auto newKey = 2 * centralChunk - key;
+
             mesh(chunkMap[key], meshData);
+            chunkMap.replace_key(chunkMap.find(key), newKey);
+            chunkMeshMap.replace_key(chunkMeshMap.find(key), newKey);
 
             {
                 std::lock_guard<std::mutex> lock(queueMutex);
-                chunkQueue.push(key);
+                chunkQueue.push(newKey);
             }
         }
-        did = true;
-        auto end = std::chrono::steady_clock::now();
-
-        auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            end - start
-        );
-
-        auto filtre_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            filtre_end - start
-        );
-
-        auto update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            end - filtre_end
-        );
-
-        auto voxelUpdate_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            vexel_update - filtre_end
-        );
-
-        auto remeshing_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            end - vexel_update
-        );
-
-        std::cout << "Temps écoulés : " << total_duration.count() << " ms\n filtrage: " << filtre_duration.count() << "ms \n    vexels update: " << voxelUpdate_duration.count() << " ms\n    remeshing: " << remeshing_duration.count() << " ms\n update: " << update_duration.count() << "ms\n";
     }
 
     static void workerLoop() {
@@ -139,7 +105,7 @@ namespace scene {
             {
                 std::unique_lock<std::mutex> lock(cvMutex);
                 cv.wait(lock, [] { return moveRequested || !running; });
-                if (!running || did) return;
+                if (!running) return;
                 moveRequested = !chunkQueue.empty();
             }
 
@@ -147,7 +113,7 @@ namespace scene {
         }
     }
 
-    //////////////////////////////////////TREADING/////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////TREADING/////////////////////////////////////////////////////////////
     void startWorker() { running = true; worker = std::thread(workerLoop); }
 
     void stopWorker() {

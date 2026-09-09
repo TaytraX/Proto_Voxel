@@ -25,7 +25,10 @@ int3 get_moveDir() {
 }
 
 static bool outsideWindow(int3 pos, int3 center) {
-    return floor(sqrt(pow((center.x - pos.x), 2) + pow((center.z - pos.z), 2))) > 16;
+    int dx = center.x - pos.x;
+    int dz = center.z - pos.z;
+    constexpr int R1sq = (16 + 1) * (16 + 1);
+    return (dx * dx + dz * dz) >= R1sq;
 }
 
 [shader("compute")]

@@ -4,12 +4,13 @@
 #include <glm/gtx/hash.hpp>
 #include "mesher.h"
 #include <queue>
-#include <unordered_map>
+#include <unordered_dense.h>
+#include <array>
 
 namespace scene {
 	extern glm::ivec3 centralChunk;
-	extern std::unordered_map<glm::ivec3, std::pair<MeshData, size_t>> chunkMeshMap;
-	extern std::unordered_map<glm::ivec3, uint32_t[CHUNK_AXIS3_SIZE]> chunkMap;
+	extern ankerl::unordered_dense::segmented_map<glm::ivec3, MeshData> chunkMeshMap;
+	extern ankerl::unordered_dense::segmented_map<glm::ivec3, std::array<uint32_t, CHUNK_AXIS3_SIZE>> chunkMap;
 
 	void genScene();
 	

@@ -51,7 +51,7 @@ VSOutput vs_main(uint2 data, uint vertexID: SV_VertexID, uint face: SV_StartVert
         (data.x >> 0) & 0x7F,
         (data.x >> 7) & 0x7F,
         (data.x >> 14) & 0x7F
-);
+    );
 
     int w = int((data.x >> 21u) & 0x7Fu), h = int((data.y >> 24u) & 0x7Fu);
     uint wDir = (faceIdx & 2) >> 1, hDir = 2 - (faceIdx >> 2);

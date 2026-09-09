@@ -3,8 +3,9 @@
 #include <fstream>
 #include <iostream>
 #include "scene.h"
+#include "util.hpp"
 
-Camera 					       camera(glm::vec3(32.0f, 1.0f, 32.0f), glm::radians(90.0f), glm::radians(0.0f));
+Camera 					       camera(glm::vec3(0.0f), glm::radians(90.0f), glm::radians(0.0f));
 Projection 			           projection(800, 600, glm::radians(45.0f), 0.1f, (RENDER_DISTANCE * CHUNK_AXIS1_SIZE) * 1.5f * sqrt(2.0f));
 CameraUniform				   cameraUniform;
 CameraBuffer				   cameraUniformBuffer;
@@ -455,8 +456,8 @@ void RenderState::createVertexBufferStaged() {
    // std::cout << "Updating vertex buffer..." << std::endl;
 
     // Staging buffer (CPU -> visible)
-    VkBuffer stagingBuffer;
-    VmaAllocation stagingAllocation;
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation stagingAllocation = VK_NULL_HANDLE;
 
     VkBufferCreateInfo stagingInfo{};
     stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -472,14 +473,9 @@ void RenderState::createVertexBufferStaged() {
     vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
         &stagingBuffer, &stagingAllocation, &stagingResultInfo);
 
-    for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
-        for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
-            if (scene::chunkMap.contains(glm::ivec3(x, 0, z))) {
-                const auto& data = scene::chunkMeshMap[glm::ivec3(x, 0, z)];
-				//std::cout << "Copying data for chunk at position: (" << x << ", 0, " << z << ") to index : " << data.second << std::endl;
-                memcpy((char*)stagingResultInfo.pMappedData + sizeof(uint64_t) * 1000 * data.second, data.first.vertices->data(), sizeof(uint64_t) * 1000);
-            }
-        }
+    for (const auto& [key, data] : scene::chunkMeshMap) {
+        //std::cout << "Copying data for chunk at position: (" << key.x << ", 0, " << key.z << ") to index : " << data.second << std::endl;
+        memcpy((char*)stagingResultInfo.pMappedData + sizeof(uint64_t) * 1000 * index_of(scene::chunkMeshMap, key), data.vertices->data(), sizeof(uint64_t) * 1000);
     }
     //std::cout << "Memory copied to staging buffer" << std::endl;
     VkCommandBufferAllocateInfo cbAllocInfo{};
@@ -518,12 +514,12 @@ void RenderState::createVertexBufferStaged() {
 }
 
 void RenderState::updateBuffer(glm::ivec3 chunkPos) {
-    std::cout << "Updating vertex buffer..." << std::endl;
+    //std::cout << "Updating vertex buffer..." << std::endl;
     VkDeviceSize bufferSize = sizeof(uint64_t) * 1000;
 
     // 1. Staging buffer (CPU -> visible)
-    VkBuffer stagingBuffer;
-    VmaAllocation stagingAllocation;
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation stagingAllocation = VK_NULL_HANDLE;
 
     VkBufferCreateInfo stagingInfo{};
     stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -539,8 +535,9 @@ void RenderState::updateBuffer(glm::ivec3 chunkPos) {
     vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
         &stagingBuffer, &stagingAllocation, &stagingResultInfo);
 
-    const auto& slot = scene::chunkMeshMap[chunkPos].second;
-    const auto& data = scene::chunkMeshMap[chunkPos].first;
+    auto slot = index_of(scene::chunkMeshMap, chunkPos);
+    //std::cout << "Updating chunk at index " << slot << ": (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
+    const auto& data = scene::chunkMeshMap[chunkPos];
     //std::cout << "Updating chunk at index " << scene::chunkMeshMap[chunkPos].second << ": (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
     memcpy(stagingResultInfo.pMappedData, data.vertices->data(), bufferSize);
 
@@ -584,12 +581,13 @@ void RenderState::updateBuffer(glm::ivec3 chunkPos) {
 }
 
 void RenderState::updateIndirectBuffer(glm::ivec3 chunkPos) {
+	//std::cout << "Updating indirect buffer..." << std::endl;
     VkDeviceSize bufferSize = sizeof(VkDrawIndirectCommand) * 6;
 
 
     // 1. Staging buffer (CPU -> visible)
-    VkBuffer stagingBuffer;
-    VmaAllocation stagingAllocation;
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation stagingAllocation = VK_NULL_HANDLE;
 
     VkBufferCreateInfo stagingInfo{};
     stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -608,7 +606,8 @@ void RenderState::updateIndirectBuffer(glm::ivec3 chunkPos) {
     // Le STAGING ne contient qu'UN SEUL slot (6 commandes) -> écrit à
     // l'offset 0. C'est copyRegion.dstOffset, plus bas, qui place ces
     // données au bon slot dans indirectBuffer.
-    const uint32_t slot = scene::chunkMeshMap[chunkPos].second;
+    auto slot = index_of(scene::chunkMeshMap, chunkPos);
+	//std::cout << "Updating chunk at index " << slot << ": (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
     memcpy(stagingResultInfo.pMappedData, &commands[6 * slot], (size_t)bufferSize);
     vmaFlushAllocation(
         allocator,
@@ -764,33 +763,30 @@ void RenderState::createIndirectBuffer() {
 
     // Fill the buffer with draw commands
     //std::cout << "Size :" << 6 * scene::chunkMap.size() << std::endl;
-    for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
-        for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
-            if (!scene::chunkMap.contains(glm::ivec3(x, 0, z))) continue;
-            const auto& data = scene::chunkMeshMap[glm::ivec3(x, 0, z)].first;
-            const uint32_t globalQuadOffset = 1000 * scene::chunkMeshMap[glm::ivec3(x, 0, z)].second;
-            //std::cout << "Iterate for chunk at position: (" << x << ", " << 0 << ", " << z << ") to index " << scene::chunkMap[glm::ivec3(x, 0, z)].second << std::endl;
-            for (int i = 0; i < 6; i++) {
+    for (const auto& [chunkPos, data] : scene::chunkMeshMap) {
+        auto slot = index_of(scene::chunkMeshMap, chunkPos);
+        const uint32_t globalQuadOffset = 1000 * slot;
+        //std::cout << "Iterate for chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") to index " << slot << std::endl;
+        for (int i = 0; i < 6; i++) {
                 //std::cout << "Command " << scene::chunkMap[glm::ivec3(x, 0, z)].second * 6 + i << std::endl;
-                commands[scene::chunkMeshMap[glm::ivec3(x, 0, z)].second * 6 + i] = VkDrawIndirectCommand{
+                commands[slot * 6 + i] = VkDrawIndirectCommand{
                     .vertexCount = 6,
                     .instanceCount = (unsigned)data.faceVertexLength[i],
                     .firstVertex = (unsigned)(
                         (i & 0b111) << 24 |
-                        (x & 0xFF) << 16 |
-                        (0 & 0xFF) << 8 |
-                        (z & 0xFF)
+                        (chunkPos.x & 0xFF) << 16 |
+                        (chunkPos.y & 0xFF) << 8 |
+                        (chunkPos.z & 0xFF)
                     ),
                     .firstInstance = globalQuadOffset + (unsigned)data.faceVertexBegin[i]
                 };
             }
-        }
     }
     //std::cout << commands.size() << " draw commands generated for " << scene::chunkMap.size() << "chunks" << std::endl;
 
     // 1. Staging buffer (CPU -> visible)
-    VkBuffer stagingBuffer;
-    VmaAllocation stagingAllocation;
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation stagingAllocation = VK_NULL_HANDLE;
 
     VkBufferCreateInfo stagingInfo{};
     stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -967,7 +963,7 @@ void RenderState::update() {
         camera.position.z > CHUNK_AXIS1_SIZE || camera.position.z < 0) {
 
         moveScene();
-
+    
         if (camera.position.x > CHUNK_AXIS1_SIZE) { camera.position.x -= CHUNK_AXIS1_SIZE; scene::centralChunk.x += 1; }
         else if (camera.position.x < 0) { camera.position.x += CHUNK_AXIS1_SIZE; scene::centralChunk.x -= 1; }
         if (camera.position.z > CHUNK_AXIS1_SIZE) { camera.position.z -= CHUNK_AXIS1_SIZE; scene::centralChunk.z += 1; }
@@ -984,8 +980,8 @@ void RenderState::update() {
 
 void RenderState::updateChunk(glm::ivec3 chunkPos) {
     if (!scene::chunkMap.contains(chunkPos)) throw std::runtime_error("chunk not existe");
-    const auto& meshData = scene::chunkMeshMap[chunkPos].first; // const& : évite la copie du MeshData
-    const size_t slot = scene::chunkMeshMap[chunkPos].second;
+    const auto& meshData = scene::chunkMeshMap[chunkPos]; 
+    auto slot = index_of(scene::chunkMeshMap, chunkPos);
 
     for (int i = 0; i < 6; i++) {
         const uint32_t globalQuadOffset = 1000 * (uint32_t)slot;
@@ -995,6 +991,8 @@ void RenderState::updateChunk(glm::ivec3 chunkPos) {
         comd.firstInstance = globalQuadOffset + (unsigned)meshData.faceVertexBegin[i];
         
     }
+
+	//std::cout << "Updating chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
     updateBuffer(chunkPos);
     updateIndirectBuffer(chunkPos);
 }

@@ -66,6 +66,9 @@
     <ClInclude Include="scene.h">
       <Filter>Fichiers d%27en-tête\render_backend</Filter>
     </ClInclude>
+    <ClInclude Include="util.hpp">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="client.cpp">
