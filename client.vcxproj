@@ -164,6 +164,7 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="mesher.h" />
     <ClInclude Include="networking.h" />
+    <ClInclude Include="perlin.hpp" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="scene.h" />
     <ClInclude Include="state.h" />

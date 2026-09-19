@@ -33,6 +33,7 @@ SOFTWARE.
 // Ta formule i = y*(Tx*Tz) + Tx*z + x devient, avec Tx = Tz = CS_P :
 static constexpr int Tx = CHUNK_AXIS1_SIZE;
 static constexpr int Tz = CHUNK_AXIS1_SIZE;
+static constexpr int MAX_FACE = 10000;
 
 static const inline int voxelIndex(const int x, const int y, const int z) {
 	return (y * (Tx * Tz)) + (Tx * z) + x;

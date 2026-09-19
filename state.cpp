@@ -175,18 +175,48 @@ void RenderState::createComputePipeline() {
         .pushConstantRangeCount = 0
     };
 
-    if (vkCreatePipelineLayout(context.device, &pipelineLayoutInfo, nullptr, &computePipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(context.device, &pipelineLayoutInfo, nullptr, &sceneMovePipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create compute pipeline layout!");
     }
 
     VkComputePipelineCreateInfo pipelineInfo{
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .stage = computeShaderStageInfo,
-        .layout = computePipelineLayout,
+        .layout = sceneMovePipelineLayout,
     };
 
-    if (vkCreateComputePipelines(context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+    if (vkCreateComputePipelines(context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &sceneMovePipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create compute pipeline!");
+    }
+
+    vkDestroyShaderModule(context.device, shaderModule, nullptr);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    shaderCode = readFile("shaders/build/frustrum.spv");
+
+    shaderModule = createShaderModule(shaderCode);
+
+    computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    computeShaderStageInfo.module = shaderModule;
+    computeShaderStageInfo.pName = "frustum_culling";
+
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = (uint32_t)layouts.size();
+    pipelineLayoutInfo.pSetLayouts = layouts.data();
+    pipelineLayoutInfo.pushConstantRangeCount = 0;
+
+    if (vkCreatePipelineLayout(context.device, &pipelineLayoutInfo, nullptr, &frustrumPipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create frustrum pipeline layout!");
+    }
+
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineInfo.stage = computeShaderStageInfo;
+    pipelineInfo.layout = frustrumPipelineLayout;
+
+    if (vkCreateComputePipelines(context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &frustrumPipeline) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create frustrum pipeline!");
     }
 
     vkDestroyShaderModule(context.device, shaderModule, nullptr);
@@ -243,6 +273,43 @@ void RenderState::recordCommandBuffer(uint32_t imageIndex) {
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
         throw std::runtime_error("failed to begin recording command buffer!");
     }
+
+    // --- BARRIÈRE : Attendre que indirectBuffer soit prêt ---
+    VkBufferMemoryBarrier2 indirectBufferBarrier{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,       // Stage source : vkCmdCopyBuffer (dans updateIndirectBuffer)
+        .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,        // Accès source : écriture par transfert
+        .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, // Stage destination : frustum culling
+        .dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT,           // Accès destination : lecture par le compute shader
+        .buffer = indirectBuffer,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE
+    };
+
+    VkDependencyInfo depInfo{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .bufferMemoryBarrierCount = 1,
+        .pBufferMemoryBarriers = &indirectBufferBarrier
+    };
+    vkCmdPipelineBarrier2(commandBuffer, &depInfo);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, frustrumPipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, frustrumPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+    vkCmdDispatch(commandBuffer, (uint32_t)scene::chunkMap.size(), 1, 1);
+
+    VkMemoryBarrier2 frustrumBarrier{
+    .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+    .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, // Stage source : compute shader
+    .srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT,          // Accès source : écriture par le compute shader
+    .dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,  // Stage destination : draw indirect
+    .dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT  // Accès destination : lecture des commandes indirectes
+    };
+    VkDependencyInfo frustrumDepInfo{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .memoryBarrierCount = 1,
+        .pMemoryBarriers = &frustrumBarrier
+    };
+    vkCmdPipelineBarrier2(commandBuffer, &frustrumDepInfo);
 
     VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
 
@@ -441,11 +508,11 @@ void RenderState::drawFrame() {
 }
 
 void RenderState::createVertexBufferStaged() {
-    VkDeviceSize bufferSize = sizeof(uint64_t) * 1000 * scene::chunkMap.size();
+    VkDeviceSize bufferSize = sizeof(uint64_t) * MAX_FACE * scene::chunkMap.size();
     VkBufferCreateInfo bufferInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = bufferSize,
-        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
     };
 
     VmaAllocationCreateInfo allocInfo{};
@@ -475,7 +542,7 @@ void RenderState::createVertexBufferStaged() {
 
     for (const auto& [key, data] : scene::chunkMeshMap) {
         //std::cout << "Copying data for chunk at position: (" << key.x << ", 0, " << key.z << ") to index : " << data.second << std::endl;
-        memcpy((char*)stagingResultInfo.pMappedData + sizeof(uint64_t) * 1000 * index_of(scene::chunkMeshMap, key), data.vertices->data(), sizeof(uint64_t) * 1000);
+        memcpy((char*)stagingResultInfo.pMappedData + sizeof(uint64_t) * MAX_FACE * index_of(scene::chunkMeshMap, key), data.vertices->data(), sizeof(uint64_t) * MAX_FACE);
     }
     //std::cout << "Memory copied to staging buffer" << std::endl;
     VkCommandBufferAllocateInfo cbAllocInfo{};
@@ -515,7 +582,7 @@ void RenderState::createVertexBufferStaged() {
 
 void RenderState::updateBuffer(glm::ivec3 chunkPos) {
     //std::cout << "Updating vertex buffer..." << std::endl;
-    VkDeviceSize bufferSize = sizeof(uint64_t) * 1000;
+    VkDeviceSize bufferSize = sizeof(uint64_t) * MAX_FACE;
 
     // 1. Staging buffer (CPU -> visible)
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
@@ -732,6 +799,12 @@ void RenderState::createDescriptorSetLayout() {
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT
+        },
+        VkDescriptorSetLayoutBinding {
+            .binding = 2,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT
         }
     };
 
@@ -765,24 +838,24 @@ void RenderState::createIndirectBuffer() {
     //std::cout << "Size :" << 6 * scene::chunkMap.size() << std::endl;
     for (const auto& [chunkPos, data] : scene::chunkMeshMap) {
         auto slot = index_of(scene::chunkMeshMap, chunkPos);
-        const uint32_t globalQuadOffset = 1000 * slot;
-        //std::cout << "Iterate for chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") to index " << slot << std::endl;
+        const uint32_t globalQuadOffset = MAX_FACE * slot;
+        std::cout << "Iterate for chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") to index " << slot << std::endl;
         for (int i = 0; i < 6; i++) {
-                //std::cout << "Command " << scene::chunkMap[glm::ivec3(x, 0, z)].second * 6 + i << std::endl;
-                commands[slot * 6 + i] = VkDrawIndirectCommand{
-                    .vertexCount = 6,
-                    .instanceCount = (unsigned)data.faceVertexLength[i],
-                    .firstVertex = (unsigned)(
-                        (i & 0b111) << 24 |
-                        (chunkPos.x & 0xFF) << 16 |
-                        (chunkPos.y & 0xFF) << 8 |
-                        (chunkPos.z & 0xFF)
-                    ),
-                    .firstInstance = globalQuadOffset + (unsigned)data.faceVertexBegin[i]
-                };
-            }
+            std::cout << "Command " << slot * 6 + i << std::endl;
+            commands[slot * 6 + i] = VkDrawIndirectCommand{
+                .vertexCount = 6,
+                .instanceCount = (unsigned)data.faceVertexLength[i],
+                .firstVertex = (unsigned)(
+                    (i & 0b111) << 24 |
+                    (chunkPos.x & 0xFF) << 16 |
+                    (chunkPos.y & 0xFF) <<  8 |
+                    (chunkPos.z & 0xFF)
+                ),
+                .firstInstance = globalQuadOffset + (unsigned)data.faceVertexBegin[i]
+            };
+         }
     }
-    //std::cout << commands.size() << " draw commands generated for " << scene::chunkMap.size() << "chunks" << std::endl;
+    std::cout << commands.size() << " draw commands generated for " << scene::chunkMap.size() << "chunks" << std::endl;
 
     // 1. Staging buffer (CPU -> visible)
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
@@ -852,7 +925,7 @@ void RenderState::createDescriptorPool() {
         },
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1
+            .descriptorCount = 2
         }
     };
 
@@ -885,8 +958,8 @@ void RenderState::moveScene() {
     };
     vkBeginCommandBuffer(cmd, &beginInfo);
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, sceneMovePipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, sceneMovePipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
     vkCmdDispatch(cmd, (uint32_t)scene::chunkMap.size() * 6, 1, 1);
 
     vkEndCommandBuffer(cmd);
@@ -920,7 +993,7 @@ void RenderState::createDescriptorSets() {
         throw std::runtime_error("failed to allocate descriptor set!");
     }
 
-    VkDescriptorBufferInfo bufferInfo[2]{
+    VkDescriptorBufferInfo bufferInfo[3]{
         {
             .buffer = cameraUniformBuffer.getBuffer(),
             .offset = 0,
@@ -931,9 +1004,14 @@ void RenderState::createDescriptorSets() {
             .offset = 0,
             .range = VK_WHOLE_SIZE
         },
+        {
+            .buffer = sceneBuffer,
+            .offset = 0,
+            .range = VK_WHOLE_SIZE
+        },
     };
 
-    VkWriteDescriptorSet descriptorWrite[2]{
+    VkWriteDescriptorSet descriptorWrite[3]{
         {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = descriptorSet,
@@ -951,10 +1029,19 @@ void RenderState::createDescriptorSets() {
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .pBufferInfo = &bufferInfo[1]
+        },
+        {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptorSet,
+            .dstBinding = 2,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &bufferInfo[2]
         }
     };
 
-    vkUpdateDescriptorSets(context.device, 2, descriptorWrite, 0, nullptr);
+    vkUpdateDescriptorSets(context.device, 3, descriptorWrite, 0, nullptr);
 }
 
 void RenderState::update() {
@@ -984,12 +1071,11 @@ void RenderState::updateChunk(glm::ivec3 chunkPos) {
     auto slot = index_of(scene::chunkMeshMap, chunkPos);
 
     for (int i = 0; i < 6; i++) {
-        const uint32_t globalQuadOffset = 1000 * (uint32_t)slot;
+        const uint32_t globalQuadOffset = MAX_FACE * (uint32_t)slot;
         VkDrawIndirectCommand& comd = commands[slot * 6 + i];
         
-        comd.instanceCount = (unsigned)meshData.faceVertexLength[i];
         comd.firstInstance = globalQuadOffset + (unsigned)meshData.faceVertexBegin[i];
-        
+        comd.instanceCount = (unsigned)meshData.faceVertexLength[i];
     }
 
 	//std::cout << "Updating chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
@@ -1001,8 +1087,10 @@ RenderState::~RenderState() {
     vkDestroyPipeline(context.device, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(context.device, pipelineLayout, nullptr);
 
-    vkDestroyPipeline(context.device, computePipeline, nullptr);
-    vkDestroyPipelineLayout(context.device, computePipelineLayout, nullptr);
+    vkDestroyPipeline(context.device, sceneMovePipeline, nullptr);
+    vkDestroyPipelineLayout(context.device, sceneMovePipelineLayout, nullptr);
+    vkDestroyPipeline(context.device, frustrumPipeline, nullptr);
+    vkDestroyPipelineLayout(context.device, frustrumPipelineLayout, nullptr);
 
     vkDestroyBuffer(context.device, sceneBuffer, nullptr);
     vmaFreeMemory(allocator, sceneBufferAllocation);

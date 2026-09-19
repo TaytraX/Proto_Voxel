@@ -3,7 +3,6 @@
 
 #include "networking.h"
 #include <winsock2.h>
-#include "engine_constants.hpp"
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <iostream>
@@ -41,9 +40,12 @@ void connectToServer(const char* serverIp, int serverPort) {
 	}
 }
 
-uint32_t* getChunk() {
-	void* buffer = malloc(sizeof(uint32_t) * CHUNK_AXIS3_SIZE);
-	recv(ConnectSocket, (char*)	buffer, CHUNK_MEM_SIZE, 0);
-	
-	return (uint32_t*)buffer;
+bool getChunk(std::array<uint32_t, CHUNK_AXIS3_SIZE>& outBuffer) {
+	recv(ConnectSocket, (char*)outBuffer.data(), CHUNK_MEM_SIZE, MSG_WAITALL);
+	return true;
+}
+
+void closeConnection() {
+	closesocket(ConnectSocket);
+	WSACleanup();
 }

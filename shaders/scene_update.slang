@@ -37,7 +37,7 @@ void move_scene(uint3 dispatchThreadID: SV_DispatchThreadID) {
 
     int3 pos = int3(
         int8_t((cmds[chunkIndex].firstVertex >> 16) & 0xFF),
-        int8_t((cmds[chunkIndex].firstVertex >> 8) & 0xFF),
+        int8_t((cmds[chunkIndex].firstVertex >>  8) & 0xFF),
         int8_t(cmds[chunkIndex].firstVertex & 0xFF)
     );
     cmds[chunkIndex].firstVertex = 0ull;

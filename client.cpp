@@ -78,7 +78,7 @@ void processInput(std::function<void(glm::ivec3)> updateChunkCallback) {
 	if (keys[VK_TAB]) cameraSpeed += 0.01f;
 	else cameraSpeed = 0.04f;
     if (keys[VK_ESCAPE]) isRunning = false;
-
+    
     mouseDelta.x = 0.0;
     mouseDelta.y = 0.0;
     if (mouseAdd) {
@@ -123,18 +123,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    for (int X = -RENDER_DISTANCE; X <= RENDER_DISTANCE; X++)
+    for (int X = -RENDER_DISTANCE; X <= RENDER_DISTANCE; X++) {
         for (int Z = -RENDER_DISTANCE; Z <= RENDER_DISTANCE; Z++) {
-            if (floor(std::sqrt(X * X + Z * Z)) > RENDER_DISTANCE) continue;
-            const auto& [chunk, inserted] = scene::chunkMap.try_emplace({ X, 0, Z });
-            for (int x = 0; x < CHUNK_AXIS1_SIZE; ++x) {
-                for (int z = 0; z < CHUNK_AXIS1_SIZE; ++z) {
-                    chunk->second[voxelIndex(x, 0, z)] = 2;
-                    chunk->second[voxelIndex(0, 1, 0)] = 1;
-                }
+            if (X * X + Z * Z <= (RENDER_DISTANCE + 1) * (RENDER_DISTANCE + 1)) {
+				/*for (int x = 0; x < CHUNK_AXIS1_SIZE; x++) {
+					for (int z = 0; z < CHUNK_AXIS1_SIZE; z++) {
+                        scene::chunkMap[glm::ivec3(X, 0, Z)][voxelIndex(x, 0, z)] = 1;
+                        scene::chunkMap[glm::ivec3(X, 0, Z)][voxelIndex(0, 1, 0)] = 2;
+					}
+				}*/
+				getChunk(scene::chunkMap[glm::ivec3(X, 0, Z)]);
             }
-
         }
+    }
+
     scene::genScene();
     scene::startWorker();
 
@@ -160,6 +162,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         renderState.drawFrame();
     }
     scene::stopWorker();
+	closeConnection();
     return (int) msg.wParam;
 }
 
@@ -221,7 +224,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    rid[1].hwndTarget = hWnd;
 
    RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
-   //connectToServer("127.0.0.1", 82807);
+   connectToServer("127.0.0.1", 82807);
    context.init(hWnd, hInstance);
 
    if (!hWnd)

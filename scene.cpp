@@ -50,12 +50,14 @@ namespace scene {
                 .opaqueMask = fillOpaqueMask(chunkMap[chunkPos]),
                 .forwardMerged = new uint8_t[CHUNK_AXIS2_SIZE]{ 0 },
                 .rightMerged = new uint8_t[CHUNK_AXIS1_SIZE]{ 0 },
-                .vertices = new std::vector<uint64_t>(1000),
-                .maxVertices = 1000
+                .vertices = new std::vector<uint64_t>(MAX_FACE),
+                .maxVertices = MAX_FACE
             };
             
             mesh(voxels, meshData);
             chunkMeshMap[chunkPos] = meshData;
+
+			std::cout << "Chunk at position (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") meshed with " << meshData.vertices->size() << " faces." << std::endl;
 		}
 		std::cout << "Scene generated with " << chunkMap.size() << " chunks." << std::endl;
         generateFlatChunk();

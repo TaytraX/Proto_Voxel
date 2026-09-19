@@ -18,13 +18,19 @@ class RenderState {
     VmaAllocation                  indirectBufferAlloc;
     VkBuffer                       sceneBuffer;
     VmaAllocation   	           sceneBufferAllocation;
+
     VkPipelineLayout               pipelineLayout;
-    VkPipelineLayout               computePipelineLayout;
+    VkPipelineLayout               sceneMovePipelineLayout;
+    VkPipelineLayout               frustrumPipelineLayout;
+
     VkDescriptorSetLayout          descriptorSetLayout;
     VkDescriptorPool               descriptorPool;
     VkDescriptorSet                descriptorSet;
+
     VkPipeline                     graphicsPipeline;
-    VkPipeline                     computePipeline;
+    VkPipeline                     sceneMovePipeline;
+    VkPipeline                     frustrumPipeline;
+
     VkCommandPool                  commandPool;
     std::vector<VkCommandBuffer>   commandBuffers;
     std::vector<VkSemaphore>       imageAvailableSemaphores;
@@ -38,6 +44,7 @@ class RenderState {
     // Render pass & pipeline
     void                        createGraphicsPipeline();
     void                        createComputePipeline();
+    void                        cull();
     VkShaderModule              createShaderModule(const std::vector<char>& code);
     uint32_t                    findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void                        createDescriptorPool();

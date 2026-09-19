@@ -231,5 +231,6 @@ void mesh(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels, MeshData& meshDa
         meshData.faceVertexLength[face] = faceVertexLength;
     }
 
-    meshData.vertexCount = vertexI + 1;
+    meshData.vertexCount = vertexI;
+    std::fill(meshData.vertices->begin() + vertexI, meshData.vertices->end(), 0ull);
 }
