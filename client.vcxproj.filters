@@ -19,6 +19,12 @@
     <Filter Include="Fichiers d%27en-tête\render_backend">
       <UniqueIdentifier>{f0864db0-aa0f-4633-9907-b1d40a57f992}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Fichiers sources\render_backend\scene">
+      <UniqueIdentifier>{62b76acc-be7f-4f79-bc0b-02c594a2c00d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Fichiers sources\render_backend\entity">
+      <UniqueIdentifier>{2bd658df-4140-4849-a92d-10a11792bb97}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -86,13 +92,7 @@
     <ClCompile Include="vertex.cpp">
       <Filter>Fichiers sources\render_backend</Filter>
     </ClCompile>
-    <ClCompile Include="state.cpp">
-      <Filter>Fichiers sources\render_backend</Filter>
-    </ClCompile>
     <ClCompile Include="texture.cpp">
-      <Filter>Fichiers sources\render_backend</Filter>
-    </ClCompile>
-    <ClCompile Include="mesher.cpp">
       <Filter>Fichiers sources\render_backend</Filter>
     </ClCompile>
     <ClCompile Include="Camera.cpp">
@@ -101,8 +101,14 @@
     <ClCompile Include="block.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
+    <ClCompile Include="state.cpp">
+      <Filter>Fichiers sources\render_backend\scene</Filter>
+    </ClCompile>
+    <ClCompile Include="mesher.cpp">
+      <Filter>Fichiers sources\render_backend\scene</Filter>
+    </ClCompile>
     <ClCompile Include="scene.cpp">
-      <Filter>Fichiers sources\render_backend</Filter>
+      <Filter>Fichiers sources\render_backend\scene</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

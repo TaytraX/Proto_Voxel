@@ -21,8 +21,9 @@ struct CameraUniform {
 ConstantBuffer<CameraUniform> camera;
 [[vk::binding(1, 0)]]
 RWStructuredBuffer<IndirectDrawCommand> cmds;
+
 [[vk::binding(2, 0)]]
-StructuredBuffer<uint2> sceneBuffer;
+StructuredBuffer<uint2> chunkBuffers[];
 
 // ============================================================
 // Fonction pour extraire les plans du frustum à partir de view_proj
@@ -125,11 +126,6 @@ void frustum_culling(uint3 dispatchThreadId : SV_DispatchThreadID) {
         for (int i = 0; i < 5; i++) {
             cmds[cmdBaseIndex + i].instanceCount = cmds[cmdBaseIndex + i + 1].firstInstance - cmds[cmdBaseIndex + i].firstInstance;
         }
-
-        uint32_t* instanceCount = &cmds[cmdBaseIndex + 5].instanceCount;
-        while (*instanceCount < 10000) {
-            if (sceneBuffer[cmds[cmdBaseIndex + 5].firstInstance + *instanceCount].x == 0 && sceneBuffer[cmds[cmdBaseIndex + 5].firstInstance + *instanceCount].y == 0) break;
-            (*instanceCount)++;
-        }
+        cmds[cmdBaseIndex + 5].instanceCount = chunkBuffers[NonUniformResourceIndex(chunkSlot)].getCount() - cmds[cmdBaseIndex + 5].firstInstance;
     }
 }

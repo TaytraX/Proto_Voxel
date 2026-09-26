@@ -6,7 +6,7 @@
 #include "util.hpp"
 
 Camera 					       camera(glm::vec3(0.0f), glm::radians(90.0f), glm::radians(0.0f));
-Projection 			           projection(800, 600, glm::radians(45.0f), 0.1f, (RENDER_DISTANCE * CHUNK_AXIS1_SIZE) * 1.5f * sqrt(2.0f));
+Projection 			           projection(800, 600, glm::radians(45.0f), 0.1f, (RENDER_DISTANCE* CHUNK_AXIS1_SIZE) * 1.5f * sqrt(2.0f));
 CameraUniform				   cameraUniform;
 CameraBuffer				   cameraUniformBuffer;
 
@@ -31,23 +31,12 @@ void RenderState::createGraphicsPipeline() {
 
     VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
-    VkVertexInputBindingDescription bindingDescription{};
-    bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(uint64_t);
-    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
-
-    VkVertexInputAttributeDescription attributeDescription{
-        .location = 0,
-        .binding = 0,
-        .format = VK_FORMAT_R32G32_UINT
-    };
-
     VkPipelineVertexInputStateCreateInfo vertexInputState{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 1,
-        .pVertexBindingDescriptions = &bindingDescription,
-        .vertexAttributeDescriptionCount = 1,
-        .pVertexAttributeDescriptions = &attributeDescription
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+    .vertexBindingDescriptionCount = 0,
+    .pVertexBindingDescriptions = nullptr,
+    .vertexAttributeDescriptionCount = 0,
+    .pVertexAttributeDescriptions = nullptr
     };
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{
@@ -131,20 +120,21 @@ void RenderState::createGraphicsPipeline() {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
-    VkGraphicsPipelineCreateInfo pipelineInfo{};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 2;
-    pipelineInfo.pStages = shaderStages;
-    pipelineInfo.pVertexInputState = &vertexInputState;
-    pipelineInfo.pInputAssemblyState = &inputAssembly;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterizer;
-    pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDynamicState = &dynamicState;
-    pipelineInfo.pDepthStencilState = &depthStencilState;
-    pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.pNext = &renderingCI;
+    VkGraphicsPipelineCreateInfo pipelineInfo{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = &renderingCI,
+        .stageCount = 2,
+        .pStages = shaderStages,
+        .pVertexInputState = &vertexInputState,
+        .pInputAssemblyState = &inputAssembly,
+        .pViewportState = &viewportState,
+        .pRasterizationState = &rasterizer,
+        .pMultisampleState = &multisampling,
+        .pDepthStencilState = &depthStencilState,
+        .pColorBlendState = &colorBlending,
+        .pDynamicState = &dynamicState,
+        .layout = pipelineLayout,
+    };
 
     if (vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create graphics pipeline!");
@@ -273,7 +263,6 @@ void RenderState::recordCommandBuffer(uint32_t imageIndex) {
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
         throw std::runtime_error("failed to begin recording command buffer!");
     }
-
     // --- BARRIÈRE : Attendre que indirectBuffer soit prêt ---
     VkBufferMemoryBarrier2 indirectBufferBarrier{
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
@@ -397,7 +386,6 @@ void RenderState::recordCommandBuffer(uint32_t imageIndex) {
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 2, set, 0, nullptr);
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &sceneBuffer, offsets);
     vkCmdDrawIndirect(commandBuffer, indirectBuffer, 0, 6 * (uint32_t)scene::chunkMap.size(), sizeof(VkDrawIndirectCommand));
 
     vkCmdEndRendering(commandBuffer);
@@ -488,10 +476,10 @@ void RenderState::drawFrame() {
     VkPresentInfoKHR presentInfo{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-		.pWaitSemaphores = signalSemaphores,
-		.swapchainCount = 1,
+        .pWaitSemaphores = signalSemaphores,
+        .swapchainCount = 1,
         .pSwapchains = swapChains,
-		.pImageIndices = &imageIndex
+        .pImageIndices = &imageIndex
     };
 
     result = vkQueuePresentKHR(context.presentQueue, &presentInfo);
@@ -508,21 +496,25 @@ void RenderState::drawFrame() {
 }
 
 void RenderState::createVertexBufferStaged() {
-    VkDeviceSize bufferSize = sizeof(uint64_t) * MAX_FACE * scene::chunkMap.size();
+    size_t chunkCount = scene::chunkMeshMap.size();
+    sceneBuffer.resize(chunkCount);
+    sceneBufferAllocation.resize(chunkCount);
+
+    VkDeviceSize bufferSize = sizeof(uint64_t) * MAX_FACE;
     VkBufferCreateInfo bufferInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = bufferSize,
-		.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+        .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
     };
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-    vmaCreateBuffer(allocator, &bufferInfo, &allocInfo,
-        &sceneBuffer, &sceneBufferAllocation, nullptr);
-   // std::cout << "Updating vertex buffer..." << std::endl;
+    for (size_t i = 0; i < chunkCount; ++i) {
+        vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &sceneBuffer[i], &sceneBufferAllocation[i], nullptr);
+    }
 
-    // Staging buffer (CPU -> visible)
+    // Staging buffer (CPU -> visible), réutilisé pour chaque chunk
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VmaAllocation stagingAllocation = VK_NULL_HANDLE;
 
@@ -540,11 +532,7 @@ void RenderState::createVertexBufferStaged() {
     vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
         &stagingBuffer, &stagingAllocation, &stagingResultInfo);
 
-    for (const auto& [key, data] : scene::chunkMeshMap) {
-        //std::cout << "Copying data for chunk at position: (" << key.x << ", 0, " << key.z << ") to index : " << data.second << std::endl;
-        memcpy((char*)stagingResultInfo.pMappedData + sizeof(uint64_t) * MAX_FACE * index_of(scene::chunkMeshMap, key), data.vertices->data(), sizeof(uint64_t) * MAX_FACE);
-    }
-    //std::cout << "Memory copied to staging buffer" << std::endl;
+    // Command buffer alloué une seule fois, réutilisé (reset) à chaque chunk
     VkCommandBufferAllocateInfo cbAllocInfo{};
     cbAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cbAllocInfo.commandPool = commandPool;
@@ -554,30 +542,33 @@ void RenderState::createVertexBufferStaged() {
     VkCommandBuffer cmd;
     vkAllocateCommandBuffers(context.device, &cbAllocInfo, &cmd);
 
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &beginInfo);
+    for (const auto& [key, mesh] : scene::chunkMeshMap) {
+        memcpy(stagingResultInfo.pMappedData, mesh.vertices->data(), bufferSize);
 
-    VkBufferCopy copyRegion{};
-    copyRegion.size = bufferSize;
-    vkCmdCopyBuffer(cmd, stagingBuffer, sceneBuffer, 1, &copyRegion);
+        vkResetCommandBuffer(cmd, 0);
 
-    vkEndCommandBuffer(cmd);
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(cmd, &beginInfo);
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &cmd;
+        VkBufferCopy copyRegion{ .size = bufferSize };
+        vkCmdCopyBuffer(cmd, stagingBuffer, sceneBuffer[index_of(scene::chunkMeshMap, key)], 1, &copyRegion);
 
-    vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(context.graphicsQueue); // à remplacer par un fence en prod
+        vkEndCommandBuffer(cmd);
 
-    // 4. Nettoyage
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &cmd;
+
+        vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(context.graphicsQueue); // à remplacer par un fence en prod
+    }
+
+    // Nettoyage
     vkFreeCommandBuffers(context.device, commandPool, 1, &cmd);
     vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
-
-    //std::cout << "Buffer updated" << std::endl;
 }
 
 void RenderState::updateBuffer(glm::ivec3 chunkPos) {
@@ -623,12 +614,10 @@ void RenderState::updateBuffer(glm::ivec3 chunkPos) {
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &beginInfo);
 
-    VkBufferCopy copyRegion {
-        .srcOffset = 0,
-        .dstOffset = bufferSize * slot,
+    VkBufferCopy copyRegion{
         .size = bufferSize
     };
-    vkCmdCopyBuffer(cmd, stagingBuffer, sceneBuffer, 1, &copyRegion);
+    vkCmdCopyBuffer(cmd, stagingBuffer, sceneBuffer[slot], 1, &copyRegion);
 
     vkEndCommandBuffer(cmd);
 
@@ -648,7 +637,7 @@ void RenderState::updateBuffer(glm::ivec3 chunkPos) {
 }
 
 void RenderState::updateIndirectBuffer(glm::ivec3 chunkPos) {
-	//std::cout << "Updating indirect buffer..." << std::endl;
+    //std::cout << "Updating indirect buffer..." << std::endl;
     VkDeviceSize bufferSize = sizeof(VkDrawIndirectCommand) * 6;
 
 
@@ -674,7 +663,7 @@ void RenderState::updateIndirectBuffer(glm::ivec3 chunkPos) {
     // l'offset 0. C'est copyRegion.dstOffset, plus bas, qui place ces
     // données au bon slot dans indirectBuffer.
     auto slot = index_of(scene::chunkMeshMap, chunkPos);
-	//std::cout << "Updating chunk at index " << slot << ": (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
+    //std::cout << "Updating chunk at index " << slot << ": (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
     memcpy(stagingResultInfo.pMappedData, &commands[6 * slot], (size_t)bufferSize);
     vmaFlushAllocation(
         allocator,
@@ -803,8 +792,8 @@ void RenderState::createDescriptorSetLayout() {
         VkDescriptorSetLayoutBinding {
             .binding = 2,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT
+            .descriptorCount = (uint32_t)scene::chunkMeshMap.size(),
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT
         }
     };
 
@@ -838,7 +827,6 @@ void RenderState::createIndirectBuffer() {
     //std::cout << "Size :" << 6 * scene::chunkMap.size() << std::endl;
     for (const auto& [chunkPos, data] : scene::chunkMeshMap) {
         auto slot = index_of(scene::chunkMeshMap, chunkPos);
-        const uint32_t globalQuadOffset = MAX_FACE * slot;
         std::cout << "Iterate for chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") to index " << slot << std::endl;
         for (int i = 0; i < 6; i++) {
             std::cout << "Command " << slot * 6 + i << std::endl;
@@ -848,12 +836,12 @@ void RenderState::createIndirectBuffer() {
                 .firstVertex = (unsigned)(
                     (i & 0b111) << 24 |
                     (chunkPos.x & 0xFF) << 16 |
-                    (chunkPos.y & 0xFF) <<  8 |
+                    (chunkPos.y & 0xFF) << 8 |
                     (chunkPos.z & 0xFF)
                 ),
-                .firstInstance = globalQuadOffset + (unsigned)data.faceVertexBegin[i]
+                .firstInstance = (unsigned)data.faceVertexBegin[i]
             };
-         }
+        }
     }
     std::cout << commands.size() << " draw commands generated for " << scene::chunkMap.size() << "chunks" << std::endl;
 
@@ -925,7 +913,7 @@ void RenderState::createDescriptorPool() {
         },
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 2
+            .descriptorCount = (uint32_t)(1 + scene::chunkMap.size())
         }
     };
 
@@ -993,7 +981,7 @@ void RenderState::createDescriptorSets() {
         throw std::runtime_error("failed to allocate descriptor set!");
     }
 
-    VkDescriptorBufferInfo bufferInfo[3]{
+    VkDescriptorBufferInfo bufferInfo[2]{
         {
             .buffer = cameraUniformBuffer.getBuffer(),
             .offset = 0,
@@ -1003,13 +991,17 @@ void RenderState::createDescriptorSets() {
             .buffer = indirectBuffer,
             .offset = 0,
             .range = VK_WHOLE_SIZE
-        },
-        {
-            .buffer = sceneBuffer,
+        }
+    };
+
+    std::vector<VkDescriptorBufferInfo> chunksBufferInfos;
+    for (auto& chunkBuffer : sceneBuffer) {
+        chunksBufferInfos.push_back(VkDescriptorBufferInfo{
+            .buffer = chunkBuffer,
             .offset = 0,
             .range = VK_WHOLE_SIZE
-        },
-    };
+            });
+    }
 
     VkWriteDescriptorSet descriptorWrite[3]{
         {
@@ -1035,9 +1027,9 @@ void RenderState::createDescriptorSets() {
             .dstSet = descriptorSet,
             .dstBinding = 2,
             .dstArrayElement = 0,
-            .descriptorCount = 1,
+            .descriptorCount = (uint32_t)scene::chunkMeshMap.size(),
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &bufferInfo[2]
+            .pBufferInfo = chunksBufferInfos.data()
         }
     };
 
@@ -1050,7 +1042,7 @@ void RenderState::update() {
         camera.position.z > CHUNK_AXIS1_SIZE || camera.position.z < 0) {
 
         moveScene();
-    
+
         if (camera.position.x > CHUNK_AXIS1_SIZE) { camera.position.x -= CHUNK_AXIS1_SIZE; scene::centralChunk.x += 1; }
         else if (camera.position.x < 0) { camera.position.x += CHUNK_AXIS1_SIZE; scene::centralChunk.x -= 1; }
         if (camera.position.z > CHUNK_AXIS1_SIZE) { camera.position.z -= CHUNK_AXIS1_SIZE; scene::centralChunk.z += 1; }
@@ -1067,18 +1059,17 @@ void RenderState::update() {
 
 void RenderState::updateChunk(glm::ivec3 chunkPos) {
     if (!scene::chunkMap.contains(chunkPos)) throw std::runtime_error("chunk not existe");
-    const auto& meshData = scene::chunkMeshMap[chunkPos]; 
+    const auto& meshData = scene::chunkMeshMap[chunkPos];
     auto slot = index_of(scene::chunkMeshMap, chunkPos);
 
     for (int i = 0; i < 6; i++) {
-        const uint32_t globalQuadOffset = MAX_FACE * (uint32_t)slot;
         VkDrawIndirectCommand& comd = commands[slot * 6 + i];
-        
-        comd.firstInstance = globalQuadOffset + (unsigned)meshData.faceVertexBegin[i];
+
+        comd.firstInstance = (unsigned)meshData.faceVertexBegin[i];
         comd.instanceCount = (unsigned)meshData.faceVertexLength[i];
     }
 
-	//std::cout << "Updating chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
+    //std::cout << "Updating chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
     updateBuffer(chunkPos);
     updateIndirectBuffer(chunkPos);
 }
@@ -1092,8 +1083,10 @@ RenderState::~RenderState() {
     vkDestroyPipeline(context.device, frustrumPipeline, nullptr);
     vkDestroyPipelineLayout(context.device, frustrumPipelineLayout, nullptr);
 
-    vkDestroyBuffer(context.device, sceneBuffer, nullptr);
-    vmaFreeMemory(allocator, sceneBufferAllocation);
+    for (int i = 0; i < scene::chunkMeshMap.size(); i++) {
+        vkDestroyBuffer(context.device, sceneBuffer[i], nullptr);
+        vmaFreeMemory(allocator, sceneBufferAllocation[i]);
+    }
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(context.device, renderFinishedSemaphores[i], nullptr);

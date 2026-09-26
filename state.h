@@ -13,11 +13,11 @@ extern Camera camera;
 std::vector<char> readFile(const std::string& filename);
 
 class RenderState {
-	VmaAllocator&                  allocator = context.allocator;
+    VmaAllocator& allocator = context.allocator;
     VkBuffer                       indirectBuffer;
     VmaAllocation                  indirectBufferAlloc;
-    VkBuffer                       sceneBuffer;
-    VmaAllocation   	           sceneBufferAllocation;
+    std::vector<VkBuffer>          sceneBuffer;
+    std::vector<VmaAllocation>     sceneBufferAllocation;
 
     VkPipelineLayout               pipelineLayout;
     VkPipelineLayout               sceneMovePipelineLayout;
@@ -44,7 +44,6 @@ class RenderState {
     // Render pass & pipeline
     void                        createGraphicsPipeline();
     void                        createComputePipeline();
-    void                        cull();
     VkShaderModule              createShaderModule(const std::vector<char>& code);
     uint32_t                    findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void                        createDescriptorPool();
@@ -69,7 +68,7 @@ class RenderState {
 
 public:
     RenderState();
-	~RenderState();
+    ~RenderState();
     void						updateChunk(glm::ivec3 chunkPos);
     void                        update();
     void                        drawFrame();

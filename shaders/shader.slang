@@ -29,6 +29,9 @@ static const float3 normalLookup[6] = {
 
 static const int flipLookup[6] = { 1, -1, -1, 1, -1, 1 };
 
+[[vk::binding(2, 0)]]
+StructuredBuffer<uint2> chunkBuffers[];
+
 // ---------------------------------------------------------------------
 // 1) VERTEX SHADER
 // Passe position, normale et uv tels quels en world space. Ces valeurs
@@ -37,8 +40,10 @@ static const int flipLookup[6] = { 1, -1, -1, 1, -1, 1 };
 // Le domain shader ne les recalcule plus, il les interpole seulement.
 // ---------------------------------------------------------------------
 [shader("vertex")]
-VSOutput vs_main(uint2 data, uint vertexID: SV_VertexID, uint face: SV_StartVertexLocation)
+VSOutput vs_main(uint vertexID: SV_VertexID, int instanceID: SV_InstanceID, uint firstInstance: SV_StartInstanceLocation, uint face: SV_StartVertexLocation, uint drawID: SV_DrawIndex)
 {
+    uint chunkIdx = drawID / 6;
+    uint2 data = chunkBuffers[NonUniformResourceIndex(chunkIdx)][firstInstance + instanceID];
     // Coins du quad (0,0) (1,0) (1,1) (0,1), indexés dans l'ordre du split
     // diagonal 0,1,2,0,2,3 (2 triangles pour couvrir le quad en 6 vertices).
     static const int cornerW[4] = { 0, 1, 1, 0 };
