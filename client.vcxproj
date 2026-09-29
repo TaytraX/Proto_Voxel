@@ -167,7 +167,8 @@
     <ClInclude Include="perlin.hpp" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="scene.h" />
-    <ClInclude Include="state.h" />
+    <ClInclude Include="SceneState.h" />
+    <ClInclude Include="state.hpp" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="texture.h" />
     <ClInclude Include="util.hpp" />
@@ -181,7 +182,7 @@
     <ClCompile Include="mesher.cpp" />
     <ClCompile Include="networking.cpp" />
     <ClCompile Include="scene.cpp" />
-    <ClCompile Include="state.cpp">
+    <ClCompile Include="SceneState.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClCompile>

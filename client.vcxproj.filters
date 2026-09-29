@@ -51,7 +51,7 @@
     <ClInclude Include="vertex.h">
       <Filter>Fichiers d%27en-tête\render_backend</Filter>
     </ClInclude>
-    <ClInclude Include="state.h">
+    <ClInclude Include="SceneState.h">
       <Filter>Fichiers d%27en-tête\render_backend</Filter>
     </ClInclude>
     <ClInclude Include="chunky.h">
@@ -78,6 +78,9 @@
     <ClInclude Include="perlin.hpp">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
+    <ClInclude Include="state.hpp">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="client.cpp">
@@ -101,7 +104,7 @@
     <ClCompile Include="block.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
-    <ClCompile Include="state.cpp">
+    <ClCompile Include="SceneState.cpp">
       <Filter>Fichiers sources\render_backend\scene</Filter>
     </ClCompile>
     <ClCompile Include="mesher.cpp">
