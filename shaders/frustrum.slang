@@ -19,10 +19,10 @@ struct CameraUniform {
 
 [[vk::binding(0, 0)]]
 ConstantBuffer<CameraUniform> camera;
-[[vk::binding(1, 0)]]
+[[vk::binding(0, 1)]]
 RWStructuredBuffer<IndirectDrawCommand> cmds;
 
-[[vk::binding(2, 0)]]
+[[vk::binding(1, 1)]]
 StructuredBuffer<uint2> chunkBuffers[];
 
 // ============================================================

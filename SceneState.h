@@ -11,8 +11,10 @@ extern Camera camera;
 class SceneState : State {
     VkPipeline                  graphicsPipeline = VK_NULL_HANDLE;
     VkPipelineLayout            pipelineLayout = VK_NULL_HANDLE;
+
     VkPipeline                  sceneMovePipeline = VK_NULL_HANDLE;
     VkPipelineLayout            sceneMovePipelineLayout = VK_NULL_HANDLE;
+
     VkPipeline                  frustrumPipeline = VK_NULL_HANDLE;
     VkPipelineLayout            frustrumPipelineLayout = VK_NULL_HANDLE;
 
@@ -20,14 +22,13 @@ class SceneState : State {
     VmaAllocation               indirectBufferAlloc = VK_NULL_HANDLE;
     std::vector<VkBuffer>       sceneBuffer;
     std::vector<VmaAllocation>  sceneBufferAllocation;
-    VkDescriptorSetLayout       descriptorSetLayout;
+
     VkDescriptorPool            descriptorPool;
     VkDescriptorSet             descriptorSet;
+    VkDescriptorSetLayout       descriptorSetLayout;
 
-    std::vector<VkSemaphore>    imageAvailableSemaphores;
-    std::vector<VkSemaphore>    renderFinishedSemaphores;
-    std::vector<VkFence>        inFlightFences;
-    bool                        framebufferResized = false;
+    VkDescriptorSet&         cameraDescriptor;
+    VkDescriptorSetLayout&   cameraDescriptorLayout;
 
     std::vector<VkDrawIndirectCommand> commands;
 
@@ -35,10 +36,6 @@ class SceneState : State {
     void                        createGraphicsPipeline();
     void                        createComputePipeline();
     
-    uint32_t                    findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-    void                        createDescriptorPool();
-    void                        createDescriptorSetLayout();
-    void                        createDescriptorSets();
     void                        createBufferDescriptor();
     void					    createVertexBufferStaged();
     void                        createIndirectBuffer();
@@ -46,18 +43,17 @@ class SceneState : State {
     void                        updateIndirectBuffer(glm::ivec3 chunkPos);
     void                        moveScene();
 
+    void                        createDescriptorPool();
+    void                        createDescriptorSetLayout();
+    void                        createDescriptorSets();
     void                        setupBufferDescriptor();
 
-    // Framebuffers & commands
-    void                        recordCommandBuffer();
-
-    // Sync & draw
-    void                        createSyncObjects();
-
 public:
-    SceneState();
+    SceneState(VkDescriptorSet& descriptor, VkDescriptorSetLayout& descriptorLayout);
     ~SceneState();
     void						updateChunk(glm::ivec3 chunkPos);
     void                        update();
-    void                        drawFrame();
+
+    void                        recordCommandBuffer(VkCommandBuffer& cmdBuffer);
+    void                        recordCommandFrustrum(VkCommandBuffer& cmdBuffer);
 };

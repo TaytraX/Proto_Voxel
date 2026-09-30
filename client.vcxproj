@@ -161,10 +161,12 @@
     <ClInclude Include="client.h" />
     <ClInclude Include="Context.h" />
     <ClInclude Include="engine_constants.hpp" />
+    <ClInclude Include="EntityState.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="mesher.h" />
     <ClInclude Include="networking.h" />
     <ClInclude Include="perlin.hpp" />
+    <ClInclude Include="Renderer.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="scene.h" />
     <ClInclude Include="SceneState.h" />
@@ -179,8 +181,10 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="client.cpp" />
     <ClCompile Include="Context.cpp" />
+    <ClCompile Include="EntityState.cpp" />
     <ClCompile Include="mesher.cpp" />
     <ClCompile Include="networking.cpp" />
+    <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="scene.cpp" />
     <ClCompile Include="SceneState.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>

@@ -15,7 +15,7 @@ struct VSOutput {
 
 [[vk::binding(0, 0)]]
 ConstantBuffer<CameraUniform> camera;
-[[vk::binding(0, 1)]]
+[[vk::binding(0, 2)]]
 Sampler2D material[];
 
 static const float3 normalLookup[6] = {
@@ -29,7 +29,7 @@ static const float3 normalLookup[6] = {
 
 static const int flipLookup[6] = { 1, -1, -1, 1, -1, 1 };
 
-[[vk::binding(2, 0)]]
+[[vk::binding(1, 1)]]
 StructuredBuffer<uint2> chunkBuffers[];
 
 // ---------------------------------------------------------------------

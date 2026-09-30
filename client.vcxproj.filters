@@ -81,6 +81,12 @@
     <ClInclude Include="state.hpp">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
+    <ClInclude Include="EntityState.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="client.cpp">
@@ -112,6 +118,12 @@
     </ClCompile>
     <ClCompile Include="scene.cpp">
       <Filter>Fichiers sources\render_backend\scene</Filter>
+    </ClCompile>
+    <ClCompile Include="EntityState.cpp">
+      <Filter>Fichiers sources\render_backend\entity</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer.cpp">
+      <Filter>Fichiers sources\render_backend</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

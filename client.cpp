@@ -6,7 +6,7 @@
 #include "framework.h"
 #include "client.h"
 #include "shared_context.h"
-#include "state.h"
+#include "Renderer.h"
 #include "scene.h"
 #include "block.h"
 #include <functional>
@@ -140,7 +140,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     scene::genScene();
     scene::startWorker();
 
-    RenderState renderState;
+    Renderer worldRender;
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_CLIENT));
 
     MSG msg;
@@ -154,12 +154,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         {
             DispatchMessage(&msg);
         }
-		
+
         processInput([&](glm::ivec3 chunkPos) {
-            renderState.updateChunk(chunkPos);
+            //renderState.updateChunk(chunkPos);
         });
-        renderState.update();
-        renderState.drawFrame();
+		
+        worldRender.update();
+        worldRender.drawFrame();
     }
     scene::stopWorker();
 	closeConnection();

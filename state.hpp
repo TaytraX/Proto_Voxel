@@ -3,6 +3,7 @@
 #include <vma/vk_mem_alloc.h>
 #include <exception>
 #include <fstream>
+#include <array>
 
 extern uint8_t currentFrame;
 extern uint32_t imageIndex;
@@ -57,14 +58,16 @@ class State {
             }
         }
 
-        void createCommandBuffers() {
+        void createCommandBuffers(VkCommandBuffer* cmdBuffer, size_t numCmdBuffer = 1, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
+            if (cmdBuffer == nullptr) throw::std::runtime_error("Invalid commandBuffer ptr !");
+
             VkCommandBufferAllocateInfo allocInfo{};
             allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
             allocInfo.commandPool = commandPool;
-            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+            allocInfo.level = level;
+            allocInfo.commandBufferCount = numCmdBuffer;
 
-            if (vkAllocateCommandBuffers(context.device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+            if (vkAllocateCommandBuffers(context.device, &allocInfo, cmdBuffer) != VK_SUCCESS) {
                 throw std::runtime_error("failed to allocate command buffers!");
             }
         }
@@ -82,11 +85,7 @@ class State {
             throw std::runtime_error("failed to find suitable memory type!");
         }
 
-        void resizeCmdBuffer(size_t size) {
-            commandBuffers.resize(size);
-        }
+        virtual void setupBufferDescriptor() {}
 
-        virtual void setupBufferDescriptor() = 0;
-
-    virtual void recordCommandBuffer() = 0;
+    virtual void recordCommandBuffer(VkCommandBuffer& cmdBuffer) = 0;
 };

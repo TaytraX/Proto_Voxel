@@ -11,7 +11,7 @@ struct CameraUniform {
     float _padding;
 };
 
-[[vk::binding(1, 0)]]
+[[vk::binding(0, 1)]]
 RWStructuredBuffer<IndirectDrawCommand> cmds;
 [[vk::binding(0, 0)]]
 ConstantBuffer<CameraUniform> camera;

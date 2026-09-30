@@ -5,14 +5,6 @@
 #include "scene.h"
 #include "util.hpp"
 
-uint8_t currentFrame = 0;
-uint32_t imageIndex = 0;
-
-Camera 					       camera(glm::vec3(0.0f), glm::radians(90.0f), glm::radians(0.0f));
-Projection 			           projection(800, 600, glm::radians(45.0f), 0.1f, (RENDER_DISTANCE* CHUNK_AXIS1_SIZE) * 1.5f * sqrt(2.0f));
-CameraUniform				   cameraUniform;
-CameraBuffer				   cameraUniformBuffer;
-
 // ── pipeline ────────────────────────────────────────────────────
 
 void SceneState::createGraphicsPipeline() {
@@ -108,6 +100,7 @@ void SceneState::createGraphicsPipeline() {
     auto descTexLayout = getDescriptorSetLayoutTexture();
 
     auto layouts = {
+        cameraDescriptorLayout,
         descriptorSetLayout,
         descTexLayout
     };
@@ -158,6 +151,7 @@ void SceneState::createComputePipeline() {
     computeShaderStageInfo.pName = "move_scene";
 
     auto layouts = {
+        cameraDescriptorLayout,
         descriptorSetLayout
     };
 
@@ -217,14 +211,14 @@ void SceneState::createComputePipeline() {
 
 // ── commands ───────────────────────────────────────────────────
 
-void SceneState::recordCommandBuffer() {
-    VkCommandBuffer& commandBuffer = commandBuffers[currentFrame];
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+void SceneState::recordCommandBuffer(VkCommandBuffer& cmdBuffer) {
+    auto set = { cameraDescriptor, descriptorSet, getDescriptorSetTexture() };
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, set.size(), set.data(), 0, nullptr);
+    vkCmdDrawIndirect(cmdBuffer, indirectBuffer, 0, 6 * (uint32_t)scene::chunkMap.size(), sizeof(VkDrawIndirectCommand));
+}
 
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("failed to begin recording command buffer!");
-    }
+void SceneState::recordCommandFrustrum(VkCommandBuffer& cmdBuffer) {
     // --- BARRIÈRE : Attendre que indirectBuffer soit prêt ---
     VkBufferMemoryBarrier2 indirectBufferBarrier{
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
@@ -242,11 +236,15 @@ void SceneState::recordCommandBuffer() {
         .bufferMemoryBarrierCount = 1,
         .pBufferMemoryBarriers = &indirectBufferBarrier
     };
-    vkCmdPipelineBarrier2(commandBuffer, &depInfo);
+    vkCmdPipelineBarrier2(cmdBuffer, &depInfo);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, frustrumPipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, frustrumPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-    vkCmdDispatch(commandBuffer, (uint32_t)scene::chunkMap.size(), 1, 1);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, frustrumPipeline);
+    auto layout = {
+        cameraDescriptor,
+        descriptorSet
+    };
+    vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, frustrumPipelineLayout, 0, layout.size(), layout.data(), 0, nullptr);
+    vkCmdDispatch(cmdBuffer, (uint32_t)scene::chunkMap.size(), 1, 1);
 
     VkMemoryBarrier2 frustrumBarrier{
     .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
@@ -260,200 +258,8 @@ void SceneState::recordCommandBuffer() {
         .memoryBarrierCount = 1,
         .pMemoryBarriers = &frustrumBarrier
     };
-    vkCmdPipelineBarrier2(commandBuffer, &frustrumDepInfo);
+    vkCmdPipelineBarrier2(cmdBuffer, &frustrumDepInfo);
 
-    VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
-
-    VkRenderingAttachmentInfo colorAttachmentInfo{
-    .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-    .imageView = context.swapChainImageViews[imageIndex],
-    .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-    .clearValue{clearColor}
-    };
-
-
-    VkRenderingAttachmentInfo depthAttachmentInfo{
-        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView = context.depthImageView,
-        .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .clearValue = {.depthStencil = {1.0f,  0}}
-    };
-
-    VkRenderingInfo renderingInfo{
-    .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-    .renderArea{
-            .offset = {0, 0},
-            .extent = context.swapChainExtent,
-    },
-    .layerCount = 1,
-    .colorAttachmentCount = 1,
-    .pColorAttachments = &colorAttachmentInfo,
-    .pDepthAttachment = &depthAttachmentInfo
-    };
-    VkDescriptorSet textSet = getDescriptorSetTexture();
-    VkDescriptorSet set[2] = { descriptorSet, textSet };
-
-    std::array<VkImageMemoryBarrier2, 2> outputBarriers{
-    VkImageMemoryBarrier2{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-        .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .srcAccessMask = 0,
-        .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-        .image = context.swapChainImages[imageIndex],
-        .subresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
-    },
-    VkImageMemoryBarrier2{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-        .srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-        .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        .dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
-        .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-        .image = context.depthImage,
-        .subresourceRange{.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, .levelCount = 1, .layerCount = 1 }
-    }
-    };
-    VkDependencyInfo barrierPresentDependencyInfo{
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .imageMemoryBarrierCount = 2,
-        .pImageMemoryBarriers = outputBarriers.data()
-    };
-    vkCmdPipelineBarrier2(commandBuffer, &barrierPresentDependencyInfo);
-
-    vkCmdBeginRendering(commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = (float)context.swapChainExtent.width;
-    viewport.height = (float)context.swapChainExtent.height;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-    VkRect2D scissor{};
-    scissor.offset = { 0, 0 };
-    scissor.extent = context.swapChainExtent;
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-    VkDeviceSize offsets[] = { 0 };
-
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 2, set, 0, nullptr);
-    vkCmdDrawIndirect(commandBuffer, indirectBuffer, 0, 6 * (uint32_t)scene::chunkMap.size(), sizeof(VkDrawIndirectCommand));
-
-    vkCmdEndRendering(commandBuffer);
-
-    VkImageMemoryBarrier2 toPresent{
-    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-    .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-    .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-    .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
-    .dstAccessMask = VK_ACCESS_2_NONE,
-    .oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-    .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-    .image = context.swapChainImages[imageIndex],
-    .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
-    };
-    VkDependencyInfo depInfoOut{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO, .imageMemoryBarrierCount = 1, .pImageMemoryBarriers = &toPresent };
-    vkCmdPipelineBarrier2(commandBuffer, &depInfoOut);
-
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to record command buffer!");
-    }
-}
-
-// ── Sync objects & draw ───────────────────────────────────────────────────────
-
-void SceneState::createSyncObjects() {
-    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-
-    VkSemaphoreCreateInfo semaphoreInfo{};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (vkCreateSemaphore(context.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(context.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(context.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create synchronization objects for a frame!");
-        }
-    }
-}
-
-void SceneState::drawFrame() {
-    vkWaitForFences(context.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-
-    VkResult result = vkAcquireNextImageKHR(context.device, context.swapChain, UINT64_MAX,
-        imageAvailableSemaphores[currentFrame],
-        VK_NULL_HANDLE, &imageIndex);
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        context.recreateSwapChain();
-        return;
-    }
-    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        throw std::runtime_error("failed to acquire swap chain image!");
-    }
-
-    vkResetFences(context.device, 1, &inFlightFences[currentFrame]);
-    vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-
-    recordCommandBuffer();
-
-    VkSemaphore          waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkSemaphore          signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = waitSemaphores;
-    submitInfo.pWaitDstStageMask = waitStages;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = signalSemaphores;
-
-    if (vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to submit draw command buffer!");
-    }
-
-    VkSwapchainKHR swapChains[] = { context.swapChain };
-
-    VkPresentInfoKHR presentInfo{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = signalSemaphores,
-        .swapchainCount = 1,
-        .pSwapchains = swapChains,
-        .pImageIndices = &imageIndex
-    };
-
-    result = vkQueuePresentKHR(context.presentQueue, &presentInfo);
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-        framebufferResized = false;
-        context.recreateSwapChain();
-    }
-    else if (result != VK_SUCCESS) {
-        throw std::runtime_error("failed to present swap chain image!");
-    }
-
-    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void SceneState::createVertexBufferStaged() {
@@ -681,19 +487,11 @@ void SceneState::updateIndirectBuffer(glm::ivec3 chunkPos) {
     //std::cout << "Indirect buffer updated for chunk at position: (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ")" << std::endl;
 }
 
-SceneState::SceneState() {
-    std::vector<std::string> files = {
-        "Rock032_4K-JPG_Color",
-        "GroundDirtWeedsPatchy004_COL_4K"
-    };
+SceneState::SceneState(VkDescriptorSet& descriptor, VkDescriptorSetLayout& descriptorLayout) : cameraDescriptor(descriptor), cameraDescriptorLayout(descriptorLayout) {
     createCommandPool();
-    resizeCmdBuffer(2);
-    createCommandBuffers();
     createVertexBufferStaged();
-    createSyncObjects();
     createIndirectBuffer();
     setupBufferDescriptor();
-    createTextures(files, commandPool);
     createGraphicsPipeline();
     createComputePipeline();
 }
@@ -701,7 +499,6 @@ SceneState::SceneState() {
 void SceneState::setupBufferDescriptor() {
     createDescriptorPool();
     createDescriptorSetLayout();
-    cameraUniformBuffer.create(allocator);
     createDescriptorSets();
 }
 
@@ -709,18 +506,12 @@ void SceneState::createDescriptorSetLayout() {
     auto bindings = {
         VkDescriptorSetLayoutBinding {
             .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT
-        },
-        VkDescriptorSetLayoutBinding {
-            .binding = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT
         },
         VkDescriptorSetLayoutBinding {
-            .binding = 2,
+            .binding = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptorCount = (uint32_t)scene::chunkMeshMap.size(),
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_VERTEX_BIT
@@ -835,19 +626,6 @@ void SceneState::createIndirectBuffer() {
     vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 }
 
-
-    VkDescriptorPoolCreateInfo descPoolCI{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .maxSets = 1,
-        .poolSizeCount = 2,
-        .pPoolSizes = poolSize
-    };
-
-    if (vkCreateDescriptorPool(context.device, &descPoolCI, nullptr, &descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor pool!");
-    }
-}
-
 void SceneState::moveScene() {
     VkCommandBufferAllocateInfo allocInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -865,8 +643,13 @@ void SceneState::moveScene() {
     };
     vkBeginCommandBuffer(cmd, &beginInfo);
 
+    auto set = {
+        cameraDescriptor,
+        descriptorSet
+    };
+
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, sceneMovePipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, sceneMovePipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, sceneMovePipelineLayout, 0, set.size(), set.data(), 0, nullptr);
     vkCmdDispatch(cmd, (uint32_t)scene::chunkMap.size() * 6, 1, 1);
 
     vkEndCommandBuffer(cmd);
@@ -900,13 +683,8 @@ void SceneState::createDescriptorSets() {
         throw std::runtime_error("failed to allocate descriptor set!");
     }
 
-    VkDescriptorBufferInfo bufferInfo[2]{
-        {
-            .buffer = cameraUniformBuffer.getBuffer(),
-            .offset = 0,
-            .range = cameraUniformBuffer.getSize()
-        },
-        {
+    auto bufferInfo = {
+        VkDescriptorBufferInfo {
             .buffer = indirectBuffer,
             .offset = 0,
             .range = VK_WHOLE_SIZE
@@ -922,29 +700,20 @@ void SceneState::createDescriptorSets() {
             });
     }
 
-    VkWriteDescriptorSet descriptorWrite[3]{
-        {
+    auto descriptorWrite = {
+        VkWriteDescriptorSet {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = descriptorSet,
             .dstBinding = 0,
             .dstArrayElement = 0,
             .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .pBufferInfo = &bufferInfo[0]
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = bufferInfo.data()
         },
-        {
+        VkWriteDescriptorSet {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = descriptorSet,
             .dstBinding = 1,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &bufferInfo[1]
-        },
-        {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptorSet,
-            .dstBinding = 2,
             .dstArrayElement = 0,
             .descriptorCount = (uint32_t)scene::chunkMeshMap.size(),
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -952,20 +721,19 @@ void SceneState::createDescriptorSets() {
         }
     };
 
-    vkUpdateDescriptorSets(context.device, 3, descriptorWrite, 0, nullptr);
+    vkUpdateDescriptorSets(context.device, descriptorWrite.size(), descriptorWrite.data(), 0, nullptr);
 }
 
 void SceneState::update() {
-    cameraUniformBuffer.update(camera, projection);
     if (camera.position.x > CHUNK_AXIS1_SIZE || camera.position.x < 0 ||
         camera.position.z > CHUNK_AXIS1_SIZE || camera.position.z < 0) {
 
         moveScene();
 
-        if (camera.position.x > CHUNK_AXIS1_SIZE) { camera.position.x -= CHUNK_AXIS1_SIZE; scene::centralChunk.x += 1; }
-        else if (camera.position.x < 0) { camera.position.x += CHUNK_AXIS1_SIZE; scene::centralChunk.x -= 1; }
-        if (camera.position.z > CHUNK_AXIS1_SIZE) { camera.position.z -= CHUNK_AXIS1_SIZE; scene::centralChunk.z += 1; }
-        else if (camera.position.z < 0) { camera.position.z += CHUNK_AXIS1_SIZE; scene::centralChunk.z -= 1; }
+        if (camera.position.x > CHUNK_AXIS1_SIZE) scene::centralChunk.x += 1;
+        else if (camera.position.x < 0) scene::centralChunk.x -= 1;
+        if (camera.position.z > CHUNK_AXIS1_SIZE) scene::centralChunk.z += 1;
+        else if (camera.position.z < 0) scene::centralChunk.z -= 1;
 
         scene::notifyMoved();
     }
@@ -975,6 +743,27 @@ void SceneState::update() {
         updateChunk(pos);
     }
 }
+
+void SceneState::createDescriptorPool() {
+    auto poolSize = {
+        VkDescriptorPoolSize {
+            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = (uint32_t)(1 + scene::chunkMap.size())
+        }
+    };
+
+    VkDescriptorPoolCreateInfo descPoolCI{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .maxSets = 1,
+        .poolSizeCount = (uint32_t)poolSize.size(),
+        .pPoolSizes = poolSize.data()
+    };
+
+    if (vkCreateDescriptorPool(context.device, &descPoolCI, nullptr, &descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor pool!");
+    }
+}
+
 
 void SceneState::updateChunk(glm::ivec3 chunkPos) {
     if (!scene::chunkMap.contains(chunkPos)) throw std::runtime_error("chunk not existe");
@@ -1008,11 +797,5 @@ SceneState::~SceneState() {
     for (int i = 0; i < sceneBuffer.size(); i++) {
         vkDestroyBuffer(context.device, sceneBuffer[i], nullptr);
         vmaFreeMemory(allocator, sceneBufferAllocation[i]);
-    }
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vkDestroySemaphore(context.device, renderFinishedSemaphores[i], nullptr);
-        vkDestroySemaphore(context.device, imageAvailableSemaphores[i], nullptr);
-        vkDestroyFence(context.device, inFlightFences[i], nullptr);
     }
 }
