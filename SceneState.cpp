@@ -835,17 +835,6 @@ void SceneState::createIndirectBuffer() {
     vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
 }
 
-void SceneState::createDescriptorPool() {
-    VkDescriptorPoolSize poolSize[2] = {
-        {
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = (uint32_t)(1 + scene::chunkMap.size())
-        }
-    };
 
     VkDescriptorPoolCreateInfo descPoolCI{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
