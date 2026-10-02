@@ -30,4 +30,5 @@ public:
     ~Renderer();
 	void drawFrame();
     void update();
+	void updateChunk(glm::ivec3 chunkPos);
 };

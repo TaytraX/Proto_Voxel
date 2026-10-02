@@ -315,13 +315,17 @@ Renderer::Renderer() {
 
 void Renderer::update() {
     cameraUniformBuffer.update(camera, projection);
-
+    /*
     sceneState->update();
 
     if (camera.position.x > CHUNK_AXIS1_SIZE) camera.position.x -= CHUNK_AXIS1_SIZE;
     else if (camera.position.x < 0) camera.position.x += CHUNK_AXIS1_SIZE;
     if (camera.position.z > CHUNK_AXIS1_SIZE) camera.position.z -= CHUNK_AXIS1_SIZE;
-    else if (camera.position.z < 0) camera.position.z += CHUNK_AXIS1_SIZE;
+    else if (camera.position.z < 0) camera.position.z += CHUNK_AXIS1_SIZE;*/
+}
+
+void Renderer::updateChunk(glm::ivec3 chunkPos) {
+	sceneState->updateChunk(chunkPos);
 }
 
 Renderer::~Renderer() {

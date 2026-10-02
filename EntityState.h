@@ -1,5 +1,8 @@
 #pragma once
 #include "state.hpp"
+#include <glm/glm.hpp>
+
+extern glm::vec3* components;
 
 class EntityState : public State
 {

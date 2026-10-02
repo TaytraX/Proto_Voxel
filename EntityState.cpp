@@ -1,11 +1,6 @@
 #include "EntityState.h"
-#include <glm/glm.hpp>
 
-std::array<glm::vec3, 3> components = {
-    glm::vec3(0, 4, 0),
-    glm::vec3(0),
-    glm::vec3(0)
-};
+glm::vec3* components = nullptr;
 
 void EntityState::createGraphicPipeline() {
     auto shaderCode = readFile("shaders/build/entity_shader.spv");
@@ -144,75 +139,31 @@ void EntityState::recordCommandBuffer(VkCommandBuffer& cmdBuffer) {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, entityPipeline);
     vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &componentBuffer, &offset);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, entityPipelineLayout, 0, 1, &cameraDescriptorSet, 0, nullptr);
-    vkCmdDraw(cmdBuffer, 36, components.size(), 0, 0);
+    vkCmdDraw(cmdBuffer, 36, 3, 0, 0);
 }
 
 void EntityState::createInstanceBufferStaged() {
-    VkDeviceSize bufferSize = sizeof(glm::vec3) * components.size();
+    VkDeviceSize bufferSize = sizeof(glm::vec3) * 3;
     VkBufferCreateInfo bufferInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = bufferSize,
-        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
 
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-    vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &componentBuffer, &componentBufferAlloc, nullptr);
-
-    // Staging buffer (CPU -> visible), réutilisé pour chaque chunk
-    VkBuffer stagingBuffer = VK_NULL_HANDLE;
-    VmaAllocation stagingAllocation = VK_NULL_HANDLE;
-
-    VkBufferCreateInfo stagingInfo{};
-    stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    stagingInfo.size = bufferSize;
-    stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-    VmaAllocationCreateInfo stagingAllocInfo{};
-    stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-    stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-        | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    VmaAllocationCreateInfo allocInfo{
+        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+		.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
+    };
 
     VmaAllocationInfo stagingResultInfo;
-    vmaCreateBuffer(allocator, &stagingInfo, &stagingAllocInfo,
-        &stagingBuffer, &stagingAllocation, &stagingResultInfo);
+    vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &componentBuffer, &componentBufferAlloc, &stagingResultInfo);
 
-    // Command buffer alloué une seule fois, réutilisé (reset) à chaque chunk
-    VkCommandBufferAllocateInfo cbAllocInfo{};
-    cbAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cbAllocInfo.commandPool = commandPool;
-    cbAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cbAllocInfo.commandBufferCount = 1;
+    components = static_cast<glm::vec3*>(stagingResultInfo.pMappedData);
 
-    VkCommandBuffer cmd = VK_NULL_HANDLE;
-    vkAllocateCommandBuffers(context.device, &cbAllocInfo, &cmd);
-
-    memcpy(stagingResultInfo.pMappedData, components.data(), bufferSize);
-
-    vkResetCommandBuffer(cmd, 0);
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &beginInfo);
-
-    VkBufferCopy copyRegion{ .size = bufferSize };
-    vkCmdCopyBuffer(cmd, stagingBuffer, componentBuffer, 1, &copyRegion);
-
-    vkEndCommandBuffer(cmd);
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &cmd;
-
-    vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(context.graphicsQueue); // à remplacer par un fence en prod
-
-    // Nettoyage
-    vkFreeCommandBuffers(context.device, commandPool, 1, &cmd);
-    vmaDestroyBuffer(allocator, stagingBuffer, stagingAllocation);
+    components[0] = glm::vec3(0.0f, 2.0f, 0.0f);
+    components[1] = glm::vec3(2.0f, 2.0f, 0.0f);
+    components[2] = glm::vec3(-1.0f, 2.0f, 1.0f);
 }
 
 EntityState::EntityState(VkDescriptorSet& descriptorSett, VkDescriptorSetLayout& descriptorSetLayoutt) : cameraDescriptorSet(descriptorSett), cameraDescriptorSetLayout(descriptorSetLayoutt) {
