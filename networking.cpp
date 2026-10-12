@@ -45,6 +45,11 @@ bool getChunk(std::array<uint32_t, CHUNK_AXIS3_SIZE>& outBuffer) {
 	return true;
 }
 
+void sendVelocity(const glm::vec3& velocity) {
+	static_assert(sizeof(glm::vec3) == 3 * sizeof(float), "vec3 padding inattendu");
+	send(ConnectSocket, (const char*)&velocity, sizeof(glm::vec3), 0);
+}
+
 void recvComponent(glm::vec3* outVector) {
 	static_assert(sizeof(glm::vec3) == 3 * sizeof(float), "vec3 padding inattendu");
 	recv(ConnectSocket, (char*)outVector, sizeof(glm::vec3), MSG_WAITALL);

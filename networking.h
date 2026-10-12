@@ -1,5 +1,6 @@
 #include <array>
 #include <glm/glm.hpp>
+#include "engine_constants.hpp"
 
 void connectToServer(const char* serverIp, int serverPort);
 void recvComponent(glm::vec3* outVector);
