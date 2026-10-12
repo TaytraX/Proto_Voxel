@@ -8,9 +8,9 @@
 // version codée en dur (b + a*CS_P + c*CS_P2, etc.), mais explicite désormais
 // la correspondance avec ta formule au lieu de la laisser implicite.
 static inline const size_t getAxisIndex(const int axis, const int a, const int b, const int c) {
-    if (axis == 0) return voxelIndex(b, c, a);
-    else if (axis == 1) return voxelIndex(b, a, c);
-    else return voxelIndex(c, b, a);
+    if (axis == 0)      return voxelIndex(a, c, b);
+    else if (axis == 1) return voxelIndex(c, a, b);
+    else                return voxelIndex(a, b, c);
 }
 
 static inline const void insertQuad(std::vector<uint64_t>& vertices, uint64_t quad, int& vertexI, int& maxVertices) {
@@ -35,11 +35,6 @@ constexpr uint64_t P_MASK = UINT64_MAX;
 uint64_t* fillOpaqueMask(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels) {
     uint64_t* opaqueMask = new uint64_t[CHUNK_AXIS2_SIZE] { 0 };
 
-    // Le 3e axe (c) est compressé dans les bits d'un même uint64_t.
-    // ATTENTION: la permutation exacte ici n'est PAS arbitraire — elle doit
-    // correspondre à celle que le greedy meshing utilise pour relire le voxel
-    // (voir getAxisIndex). Vérifiée par trace manuelle : opaqueMask[a*CS_P+b]
-    // bit c doit correspondre à voxels[voxelIndex(c, a, b)].
     for (int a = 0; a < CHUNK_AXIS1_SIZE; a++) {
         const int aCS_P = a * CHUNK_AXIS1_SIZE;
 
@@ -47,9 +42,8 @@ uint64_t* fillOpaqueMask(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels) {
             uint64_t bits = 0;
 
             for (int c = 0; c < CHUNK_AXIS1_SIZE; c++) {
-                if (voxels[voxelIndex(c, a, b)] != 0) {
-                    bits |= (1ull << c);
-                }
+                if (voxels[voxelIndex(b, a, c)] != 0) bits |= (1ull << c);
+                
             }
 
             opaqueMask[aCS_P + b] = bits;

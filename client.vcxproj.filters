@@ -110,20 +110,20 @@
     <ClCompile Include="block.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
-    <ClCompile Include="SceneState.cpp">
-      <Filter>Fichiers sources\render_backend\scene</Filter>
-    </ClCompile>
-    <ClCompile Include="mesher.cpp">
-      <Filter>Fichiers sources\render_backend\scene</Filter>
-    </ClCompile>
-    <ClCompile Include="scene.cpp">
-      <Filter>Fichiers sources\render_backend\scene</Filter>
-    </ClCompile>
     <ClCompile Include="EntityState.cpp">
       <Filter>Fichiers sources\render_backend\entity</Filter>
     </ClCompile>
     <ClCompile Include="Renderer.cpp">
       <Filter>Fichiers sources\render_backend</Filter>
+    </ClCompile>
+    <ClCompile Include="mesher.cpp">
+      <Filter>Fichiers sources\render_backend\scene</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneState.cpp">
+      <Filter>Fichiers sources\render_backend\scene</Filter>
+    </ClCompile>
+    <ClCompile Include="scene.cpp">
+      <Filter>Fichiers sources\render_backend\scene</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

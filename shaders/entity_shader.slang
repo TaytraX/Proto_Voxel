@@ -28,22 +28,22 @@ ConstantBuffer<CameraUniform> camera;
 // ------------------------------------------------------------
 // Dimensions du pavé (ajuste selon la taille voulue de tes entités)
 // ------------------------------------------------------------
-static const float BOX_WIDTH  = 0.6;  // étendue en X et Z
-static const float BOX_HEIGHT = 1.8;  // hauteur en Y
+static const float BOX_WIDTH  = 1.0;  // étendue en X et Z
+static const float BOX_HEIGHT = 2.0;  // hauteur en Y
 
 // ------------------------------------------------------------
 // 8 coins locaux d'un cube unité : base en Y=0 (pour poser l'entité
 // au sol à sa position, pas centrée verticalement), centré en XZ.
 // ------------------------------------------------------------
 static const float3 corners[8] = {
-    float3(-0.5, 0.0, -0.5), // 0: bas  arrière gauche
-    float3( 0.5, 0.0, -0.5), // 1: bas  arrière droite
-    float3( 0.5, 0.0,  0.5), // 2: bas  avant   droite
-    float3(-0.5, 0.0,  0.5), // 3: bas  avant   gauche
-    float3(-0.5, 1.0, -0.5), // 4: haut arrière gauche
-    float3( 0.5, 1.0, -0.5), // 5: haut arrière droite
-    float3( 0.5, 1.0,  0.5), // 6: haut avant   droite
-    float3(-0.5, 1.0,  0.5), // 7: haut avant   gauche
+    float3(-0.5,-0.5,-0.5), // 0: bas  arrière gauche
+    float3( 0.5,-0.5,-0.5), // 1: bas  arrière droite
+    float3( 0.5,-0.5, 0.5), // 2: bas  avant   droite
+    float3(-0.5,-0.5, 0.5), // 3: bas  avant   gauche
+    float3(-0.5, 0.5,-0.5), // 4: haut arrière gauche
+    float3( 0.5, 0.5,-0.5), // 5: haut arrière droite
+    float3( 0.5, 0.5, 0.5), // 6: haut avant   droite
+    float3(-0.5, 0.5, 0.5), // 7: haut avant   gauche
 };
 
 // Les 6 faces, chacune listée par 4 indices de coins, dans un ordre

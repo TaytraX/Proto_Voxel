@@ -161,7 +161,7 @@ void EntityState::createInstanceBufferStaged() {
 
     components = static_cast<glm::vec3*>(stagingResultInfo.pMappedData);
 
-    components[0] = glm::vec3(0.0f, 2.0f, 0.0f);
+    components[0] = glm::vec3(0.0f, 10.0f, 0.0f);
     components[1] = glm::vec3(2.0f, 2.0f, 0.0f);
     components[2] = glm::vec3(-1.0f, 2.0f, 1.0f);
 }

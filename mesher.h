@@ -64,7 +64,7 @@ uint64_t* fillOpaqueMask(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels);
 // @param[in] voxels: The input data includes duplicate edge data from neighboring chunks which is used
 // for visibility culling. For optimal performance, your world data should already be structured
 // this way so that you can feed the data straight into this algorithm.
-// Input data is ordered in ZXY and is 64^3 which results in a 62^3 mesh.
+// Input data is ordered in ZXY and is 64^3 which results in a 64^3 mesh.
 //
 // @param[out] meshData The allocated vertices in MeshData with a length of meshData.vertexCount.
 void mesh(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels, MeshData& meshData);

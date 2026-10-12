@@ -11,6 +11,7 @@
 #include "EntityState.h"
 #include "scene.h"
 #include "block.h"
+#include <print>
 #include <functional>
 
 float deltaTime = 0.0;
@@ -49,6 +50,10 @@ float cameraSensibility = 1.0f; // Vitesse de déplacement de la caméra
 glm::vec2 mouseDelta;
 glm::vec3 cameraWorldPos(0);
 
+float jumpForce = 100.0f;
+
+glm::vec3 velocity(0.0f);
+
 POINT center;
 
 void processInput(std::function<void(glm::ivec3)> updateChunkCallback) {
@@ -79,10 +84,11 @@ void processInput(std::function<void(glm::ivec3)> updateChunkCallback) {
         camera.position.y -= cameraSpeed * deltaTime;
         cameraWorldPos.y -= cameraSpeed * deltaTime;
     }
-    if (keys[VK_UP]) components[0].x += cameraSpeed * deltaTime;
-    if (keys[VK_DOWN]) components[0].x -= cameraSpeed * deltaTime;
-    if (keys[VK_LEFT]) components[0].z += cameraSpeed * deltaTime;
-    if (keys[VK_RIGHT]) components[0].z -= cameraSpeed * deltaTime;
+    if (keys[VK_UP]) velocity.x = cameraSpeed;
+    if (keys[VK_DOWN]) velocity.x = -cameraSpeed;
+    if (keys[VK_LEFT]) velocity.z = cameraSpeed;
+    if (keys[VK_RIGHT]) velocity.z = -cameraSpeed;
+    if (keys[VK_CONTROL]) velocity.y = jumpForce;
 
     if (keys[VK_ESCAPE]) isRunning = false;
     
@@ -133,13 +139,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     for (int X = -RENDER_DISTANCE; X <= RENDER_DISTANCE; X++) {
         for (int Z = -RENDER_DISTANCE; Z <= RENDER_DISTANCE; Z++) {
             if (X * X + Z * Z <= (RENDER_DISTANCE + 1) * (RENDER_DISTANCE + 1)) {
-				for (int x = 0; x < CHUNK_AXIS1_SIZE; x++) {
+				/*for (int x = 0; x < CHUNK_AXIS1_SIZE; x++) {
 					for (int z = 0; z < CHUNK_AXIS1_SIZE; z++) {
                         scene::chunkMap[glm::ivec3(X, 0, Z)][voxelIndex(x, 0, z)] = 1;
                         scene::chunkMap[glm::ivec3(X, 0, Z)][voxelIndex(0, 1, 0)] = 2;
 					}
-				}
-				//getChunk(scene::chunkMap[glm::ivec3(X, 0, Z)]);
+				}*/
+				getChunk(scene::chunkMap[glm::ivec3(X, 0, Z)]);
             }
         }
     }
@@ -152,6 +158,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     MSG msg;
 
+	std::thread reciver([]() {
+		while (isRunning) {
+			recvComponent(components);
+            std::println("recv position: vecteur({}, {}, {})", components[0].x, components[0].y, components[0].z);
+
+            sendVelocity(velocity);
+
+            std::println("Sending velocity: vecteur({}, {}, {})", velocity.x, velocity.y, velocity.z);
+	        velocity = glm::vec3(0.0f);
+		}
+	});
     // Boucle de messages principale :
     while (isRunning)
     {
@@ -166,14 +183,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         processInput([&](glm::ivec3 chunkPos) {
             worldRender.updateChunk(chunkPos);
         });
-		
         worldRender.update();
         worldRender.drawFrame();
         auto now = std::chrono::high_resolution_clock::now();
         deltaTime = std::chrono::duration_cast<std::chrono::duration<float>>(now - lastTime).count();
     }
+    reciver.join();
     scene::stopWorker();
-	//closeConnection();
+	closeConnection();
     return (int) msg.wParam;
 }
 
@@ -235,7 +252,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    rid[1].hwndTarget = hWnd;
 
    RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
-   //connectToServer("127.0.0.1", 82807);
+   connectToServer("127.0.0.1", 7878);
    context.init(hWnd, hInstance);
 
    if (!hWnd)

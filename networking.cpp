@@ -2,10 +2,10 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include "networking.h"
+#include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <windows.h>
-#include <iostream>
+#include "engine_constants.hpp"
 
 #pragma comment(lib, "Ws2_32.lib")
 SOCKET ConnectSocket = INVALID_SOCKET;
@@ -43,6 +43,11 @@ void connectToServer(const char* serverIp, int serverPort) {
 bool getChunk(std::array<uint32_t, CHUNK_AXIS3_SIZE>& outBuffer) {
 	recv(ConnectSocket, (char*)outBuffer.data(), CHUNK_MEM_SIZE, MSG_WAITALL);
 	return true;
+}
+
+void recvComponent(glm::vec3* outVector) {
+	static_assert(sizeof(glm::vec3) == 3 * sizeof(float), "vec3 padding inattendu");
+	recv(ConnectSocket, (char*)outVector, sizeof(glm::vec3), MSG_WAITALL);
 }
 
 void closeConnection() {

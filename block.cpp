@@ -26,7 +26,7 @@ uint32_t& getBlock(int x, int y, int z) {
 	int localY = y;
 	int localZ = z - chunkOriginZ;
 
-	return scene::chunkMap[chunkPos][voxelIndex(localZ, localY, localX)];
+	return scene::chunkMap[chunkPos][voxelIndex(localX, localY, localZ)];
 }
 
 glm::ivec3 addBlock(glm::vec3& pos, glm::vec3& forward, uint32_t blockID) {
@@ -67,6 +67,7 @@ glm::ivec3 addBlock(glm::vec3& pos, glm::vec3& forward, uint32_t blockID) {
 			int localZ = (int)floor(z - zinc) - chunkOriginZ;
 			std::cout << "Adding block at chunk (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") local coords (" << localX << ", " << (int)floor(y - yinc) << ", " << localZ << ")" << std::endl;
 
+			// opaqueMask[y * CS + x], bit z
 			scene::chunkMeshMap[chunkPos].opaqueMask[(int)floor(y - yinc) * CHUNK_AXIS1_SIZE + localX] |= (1ull << localZ);
 			return { chunkPos };
 		}
@@ -105,6 +106,7 @@ glm::ivec3 removeBlock(glm::vec3& pos, glm::vec3& forward) {
 
 			std::cout << "Removing block at chunk (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") local coords (" << localX << ", " << (int)floor(y) << ", " << localZ << ")" << std::endl;
 
+			// opaqueMask[y * CS + x], bit z
 			scene::chunkMeshMap[chunkPos].opaqueMask[(int)floor(y) * CHUNK_AXIS1_SIZE + localX] &= ~(1ull << localZ);
 			return { chunkPos };
 		}
