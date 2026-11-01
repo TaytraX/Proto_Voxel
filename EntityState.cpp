@@ -1,6 +1,5 @@
 #include "EntityState.h"
-
-glm::vec3* components = nullptr;
+#include "util.hpp"
 
 void EntityState::createGraphicPipeline() {
     auto shaderCode = readFile("shaders/build/entity_shader.spv");
@@ -139,11 +138,11 @@ void EntityState::recordCommandBuffer(VkCommandBuffer& cmdBuffer) {
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, entityPipeline);
     vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &componentBuffer, &offset);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, entityPipelineLayout, 0, 1, &cameraDescriptorSet, 0, nullptr);
-    vkCmdDraw(cmdBuffer, 36, 3, 0, 0);
+    vkCmdDraw(cmdBuffer, 36, scene::entities.size(), 0, 0);
 }
 
 void EntityState::createInstanceBufferStaged() {
-    VkDeviceSize bufferSize = sizeof(glm::vec3) * 3;
+    VkDeviceSize bufferSize = sizeof(glm::vec3) * 50;
     VkBufferCreateInfo bufferInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = bufferSize,
@@ -159,11 +158,17 @@ void EntityState::createInstanceBufferStaged() {
     VmaAllocationInfo stagingResultInfo;
     vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &componentBuffer, &componentBufferAlloc, &stagingResultInfo);
 
-    components = static_cast<glm::vec3*>(stagingResultInfo.pMappedData);
+    glm::vec3* components = static_cast<glm::vec3*>(stagingResultInfo.pMappedData);
 
-    components[0] = glm::vec3(0.0f, 10.0f, 0.0f);
-    components[1] = glm::vec3(2.0f, 2.0f, 0.0f);
-    components[2] = glm::vec3(-1.0f, 2.0f, 1.0f);
+    for (auto& [id, pos] : scene::entities) {
+        *components = *pos;
+        delete pos;
+
+        pos = nullptr;
+
+        pos = components;
+        components++;
+    }
 }
 
 EntityState::EntityState(VkDescriptorSet& descriptorSett, VkDescriptorSetLayout& descriptorSetLayoutt) : cameraDescriptorSet(descriptorSett), cameraDescriptorSetLayout(descriptorSetLayoutt) {

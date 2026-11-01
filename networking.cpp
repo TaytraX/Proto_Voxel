@@ -7,8 +7,11 @@
 #include <ws2tcpip.h>
 #include "engine_constants.hpp"
 
+uint16_t entityId = 0;
+
 #pragma comment(lib, "Ws2_32.lib")
 SOCKET ConnectSocket = INVALID_SOCKET;
+bool getChunk(std::array<uint32_t, CHUNK_AXIS3_SIZE>& outBuffer);
 
 void connectToServer(const char* serverIp, int serverPort) {
 	WSADATA wsaData;
@@ -40,9 +43,40 @@ void connectToServer(const char* serverIp, int serverPort) {
 	}
 }
 
+void integrateToServer(ankerl::unordered_dense::segmented_map<glm::ivec3, std::array<uint32_t, CHUNK_AXIS3_SIZE>>& scene, ankerl::unordered_dense::segmented_map<uint64_t, glm::vec3*>& entities) {
+	for (int X = -RENDER_DISTANCE; X <= RENDER_DISTANCE; X++) {
+		for (int Z = -RENDER_DISTANCE; Z <= RENDER_DISTANCE; Z++) {
+			if (X * X + Z * Z <= (RENDER_DISTANCE + 1) * (RENDER_DISTANCE + 1)) {
+				if (!getChunk(scene[glm::ivec3(X, 0, Z)])) {
+					std::cerr << "Failed to get chunk for position (" << X << ", 0, " << Z << ")" << std::endl;
+				}
+			}
+		}
+	}
+
+	while (true) {
+		uint64_t id = 0;
+
+		if (recv(ConnectSocket, (char*)&id, sizeof(uint64_t), MSG_WAITALL) == SOCKET_ERROR) {
+			std::cerr << "Failed to receive entity ID" << std::endl;
+			break;
+		}
+
+		if (id == UINT64_MAX) {
+			break;
+		}
+
+		entities[id] = new glm::vec3();
+
+		if (recv(ConnectSocket, (char*)entities[id], sizeof(glm::vec3), MSG_WAITALL) == SOCKET_ERROR) {
+			std::cerr << "Failed to receive entity position" << std::endl;
+			break;
+		}
+	}
+}
+
 bool getChunk(std::array<uint32_t, CHUNK_AXIS3_SIZE>& outBuffer) {
-	recv(ConnectSocket, (char*)outBuffer.data(), CHUNK_MEM_SIZE, MSG_WAITALL);
-	return true;
+	return recv(ConnectSocket, (char*)outBuffer.data(), CHUNK_MEM_SIZE, MSG_WAITALL) != SOCKET_ERROR;
 }
 
 void sendVelocity(const glm::vec3& velocity) {
@@ -50,9 +84,20 @@ void sendVelocity(const glm::vec3& velocity) {
 	send(ConnectSocket, (const char*)&velocity, sizeof(glm::vec3), 0);
 }
 
-void recvComponent(glm::vec3* outVector) {
-	static_assert(sizeof(glm::vec3) == 3 * sizeof(float), "vec3 padding inattendu");
-	recv(ConnectSocket, (char*)outVector, sizeof(glm::vec3), MSG_WAITALL);
+void recvComponent(ankerl::unordered_dense::segmented_map<uint64_t, glm::vec3*>& entities) {
+	uint64_t id = 0;
+	while (true) {
+		recv(ConnectSocket, (char*)&id, sizeof(uint64_t), MSG_WAITALL);
+		if (id == UINT64_MAX) break;
+
+		if (!entities.contains(id)) {
+			glm::vec3* last = entities.values().back().second;
+			entities[id] = last + 1;
+		}
+
+		recv(ConnectSocket, (char*)entities[id], sizeof(glm::vec3), MSG_WAITALL);
+	
+	}
 }
 
 void closeConnection() {

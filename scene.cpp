@@ -23,6 +23,7 @@ void generateFlatChunk() {
 namespace scene {
 	glm::ivec3 centralChunk(0);
 	ankerl::unordered_dense::segmented_map<glm::ivec3, MeshData> chunkMeshMap;
+    ankerl::unordered_dense::segmented_map<uint64_t, glm::vec3*> entities;
 	ankerl::unordered_dense::segmented_map<glm::ivec3, std::array<uint32_t, CHUNK_AXIS3_SIZE>> chunkMap;
 
     std::queue<glm::ivec3> chunkQueue;

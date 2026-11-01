@@ -136,19 +136,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    for (int X = -RENDER_DISTANCE; X <= RENDER_DISTANCE; X++) {
+    /*for (int X = -RENDER_DISTANCE; X <= RENDER_DISTANCE; X++) {
         for (int Z = -RENDER_DISTANCE; Z <= RENDER_DISTANCE; Z++) {
             if (X * X + Z * Z <= (RENDER_DISTANCE + 1) * (RENDER_DISTANCE + 1)) {
-				/*for (int x = 0; x < CHUNK_AXIS1_SIZE; x++) {
+				for (int x = 0; x < CHUNK_AXIS1_SIZE; x++) {
 					for (int z = 0; z < CHUNK_AXIS1_SIZE; z++) {
                         scene::chunkMap[glm::ivec3(X, 0, Z)][voxelIndex(x, 0, z)] = 1;
                         scene::chunkMap[glm::ivec3(X, 0, Z)][voxelIndex(0, 1, 0)] = 2;
 					}
-				}*/
-				getChunk(scene::chunkMap[glm::ivec3(X, 0, Z)]);
+				}
             }
         }
-    }
+    }*/
+
+	integrateToServer(scene::chunkMap, scene::entities);
 
     scene::genScene();
     scene::startWorker();
@@ -160,20 +161,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	std::thread reciver([]() {
 		while (isRunning) {
-			recvComponent(components);
-            std::println("recv position: vecteur({}, {}, {})", components[0].x, components[0].y, components[0].z);
-
             sendVelocity(velocity);
+            velocity = glm::vec3(0.0f);
 
-            std::println("Sending velocity: vecteur({}, {}, {})", velocity.x, velocity.y, velocity.z);
-	        velocity = glm::vec3(0.0f);
+            recvComponent(scene::entities);
 		}
 	});
     // Boucle de messages principale :
     while (isRunning)
     {
         auto lastTime = std::chrono::high_resolution_clock::now();
-        SetCursorPos(center.x, center.y);
         // Windows
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
@@ -185,10 +182,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         });
         worldRender.update();
         worldRender.drawFrame();
+
         auto now = std::chrono::high_resolution_clock::now();
         deltaTime = std::chrono::duration_cast<std::chrono::duration<float>>(now - lastTime).count();
     }
-    reciver.join();
+    //reciver.join();
     scene::stopWorker();
 	closeConnection();
     return (int) msg.wParam;
@@ -252,7 +250,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    rid[1].hwndTarget = hWnd;
 
    RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
-   connectToServer("127.0.0.1", 7878);
+   connectToServer("172.21.192.1", 9108);
    context.init(hWnd, hInstance);
 
    if (!hWnd)

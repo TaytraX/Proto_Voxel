@@ -1,8 +1,8 @@
 #pragma once
 #include "state.hpp"
 #include <glm/glm.hpp>
-
-extern glm::vec3* components;
+#include <unordered_dense.h>
+#include "scene.h"
 
 class EntityState : public State
 {
