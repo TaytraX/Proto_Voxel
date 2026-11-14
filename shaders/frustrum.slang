@@ -22,9 +22,6 @@ ConstantBuffer<CameraUniform> camera;
 [[vk::binding(0, 1)]]
 RWStructuredBuffer<IndirectDrawCommand> cmds;
 
-[[vk::binding(1, 1)]]
-StructuredBuffer<uint2> chunkBuffers[];
-
 // ============================================================
 // Fonction pour extraire les plans du frustum à partir de view_proj
 // ============================================================
@@ -93,7 +90,7 @@ bool isAABBOutsideFrustum(float3 aabbMin, float3 aabbMax, float4[6] planes) {
 void frustum_culling(uint3 dispatchThreadId : SV_DispatchThreadID) {
     // Index du chunk actuel
     uint chunkSlot = dispatchThreadId.x;
-    uint cmdBaseIndex = chunkSlot * 6; // Chaque chunk a 6 commandes (1 par face)
+    uint cmdBaseIndex = chunkSlot * 6 + dispatchThreadId.y;
 
     // --- Étape 1 : Extraire la position du chunk à partir de firstVertex ---
     uint32_t* firstVertex = &cmds[cmdBaseIndex].firstVertex;
@@ -116,16 +113,6 @@ void frustum_culling(uint3 dispatchThreadId : SV_DispatchThreadID) {
     // --- Étape 4 : Tester si le chunk est complètement à l'extérieur du frustum ---
     bool isOutside = isAABBOutsideFrustum(chunkMin, chunkMax, frustumPlanes);
 
-    // --- Étape 5 : Mettre à jour les 6 commandes du chunk ---
-    if (isOutside) {
-        // Le chunk est complètement à l'extérieur : instancesCount = 0 pour toutes ses commandes
-        for (int i = 0; i < 6; i++) {
-            cmds[cmdBaseIndex + i].instanceCount = 0;
-        }
-    } else {
-        for (int i = 0; i < 5; i++) {
-            cmds[cmdBaseIndex + i].instanceCount = cmds[cmdBaseIndex + i + 1].firstInstance - cmds[cmdBaseIndex + i].firstInstance;
-        }
-        cmds[cmdBaseIndex + 5].instanceCount = chunkBuffers[NonUniformResourceIndex(chunkSlot)].getCount() - cmds[cmdBaseIndex + 5].firstInstance;
-    }
+    if (isOutside) cmds[cmdBaseIndex].vertexCount = 0;
+    else cmds[cmdBaseIndex].vertexCount = 6; // Par exemple, si le chunk est à l'intérieur, on dessine les 6 faces
 }

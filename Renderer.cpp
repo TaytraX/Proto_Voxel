@@ -213,8 +213,6 @@ void Renderer::drawFrame() {
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-
-
 void Renderer::setupBufferDescriptor() {
     createDescriptorPool();
     createDescriptorSetLayout();
@@ -248,7 +246,7 @@ void Renderer::createDescriptorSetLayout() {
             .binding = 0,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT
         }
     };
 
@@ -300,7 +298,7 @@ void Renderer::createDescriptorSets() {
 
 Renderer::Renderer() {
     std::vector<std::string> files = {
-        "Rock032_4K-JPG_Color",
+        "rock",
         "GroundDirtWeedsPatchy004_COL_4K"
     };
     createCommandPool();

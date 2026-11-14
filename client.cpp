@@ -186,7 +186,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         auto now = std::chrono::high_resolution_clock::now();
         deltaTime = std::chrono::duration_cast<std::chrono::duration<float>>(now - lastTime).count();
     }
-    //reciver.join();
+    reciver.join();
     scene::stopWorker();
 	closeConnection();
     return (int) msg.wParam;
@@ -250,7 +250,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    rid[1].hwndTarget = hWnd;
 
    RegisterRawInputDevices(rid, 2, sizeof(rid[0]));
-   connectToServer("172.21.192.1", 9108);
+   connectToServer("127.0.0.1", 9108);
    context.init(hWnd, hInstance);
 
    if (!hWnd)

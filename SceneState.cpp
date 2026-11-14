@@ -245,7 +245,7 @@ void SceneState::recordCommandFrustrum(VkCommandBuffer& cmdBuffer) {
         descriptorSet
     };
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, frustrumPipelineLayout, 0, layout.size(), layout.data(), 0, nullptr);
-    vkCmdDispatch(cmdBuffer, (uint32_t)scene::chunkMap.size(), 1, 1);
+    vkCmdDispatch(cmdBuffer, (uint32_t)scene::chunkMap.size(), 6, 1);
 
     VkMemoryBarrier2 frustrumBarrier{
     .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
