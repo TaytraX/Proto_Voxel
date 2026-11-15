@@ -24,10 +24,10 @@ static inline const void insertQuad(std::vector<uint64_t>& vertices, uint64_t qu
     vertexI++;
 }
 
-static inline const uint64_t getQuad(uint64_t x, uint64_t y, uint64_t z, uint64_t w, uint64_t h, uint64_t type) {
+static inline const uint64_t getQuad(uint64_t x, uint64_t y, uint64_t z, uint64_t h, uint64_t type) {
     // data.x (bits 0-31)  : x(7) y(7) z(7) w(7) — 28/32 bits utilisés
     // data.y (bits 32-63) : type(24) h(7)       — 31/32 bits utilisés
-    return (h << 56) | (type << 32) | (w << 21) | (z << 14) | (y << 7) | x;
+    return (type << 32) | (h << 21) | (z << 14) | (y << 7) | x;
 }
 
 constexpr uint64_t P_MASK = UINT64_MAX;
@@ -53,6 +53,10 @@ uint64_t* fillOpaqueMask(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels) {
     return opaqueMask;
 }
 
+// Parité de la colonne hexagonale q = position du bit (z du mesher)
+constexpr uint64_t EVEN_BITS = 0x5555555555555555ull; // q pair
+constexpr uint64_t ODD_BITS = 0xAAAAAAAAAAAAAAAAull; // q impair
+
 void mesh(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels, MeshData& meshData) {
     meshData.vertexCount = 0;
     int vertexI = 0;
@@ -62,167 +66,126 @@ void mesh(const std::array<uint32_t, CHUNK_AXIS3_SIZE>& voxels, MeshData& meshDa
     uint8_t* forwardMerged = meshData.forwardMerged;
     uint8_t* rightMerged = meshData.rightMerged;
 
-    // Hidden face culling
-    for (int a = 0; a < CHUNK_AXIS1_SIZE; a++) {
+    // Hidden face culling : prisme hexagonal (8 faces)
+    for (int a = 0; a < CHUNK_AXIS1_SIZE; a++) {          // a = y
         const int aCS_P = a * CHUNK_AXIS1_SIZE;
 
-        for (int b = 0; b < CHUNK_AXIS1_SIZE; b++) {
-            const uint64_t columnBits = opaqueMask[aCS_P + b];
+        for (int b = 0; b < CHUNK_AXIS1_SIZE; b++) {      // b = r (x du mesher)
+            const uint64_t cur = opaqueMask[aCS_P + b];
             const int baIndex = b + a * CHUNK_AXIS1_SIZE;
-            const int abIndex = a + b * CHUNK_AXIS1_SIZE;
 
+            // Voisins verticaux
             const uint64_t negA = (a > 0) ? opaqueMask[aCS_P - CHUNK_AXIS1_SIZE + b] : 0;
             const uint64_t posA = (a < CHUNK_AXIS1_SIZE - 1) ? opaqueMask[aCS_P + CHUNK_AXIS1_SIZE + b] : 0;
+
+            // Colonnes de la rangée r+1 et r-1 (même q)
             const uint64_t posB = (b < CHUNK_AXIS1_SIZE - 1) ? opaqueMask[aCS_P + (b + 1)] : 0;
             const uint64_t negB = (b > 0) ? opaqueMask[aCS_P + (b - 1)] : 0;
 
-            faceMasks[baIndex + 0 * CHUNK_AXIS2_SIZE] = columnBits & ~posA;
-            faceMasks[baIndex + 1 * CHUNK_AXIS2_SIZE] = columnBits & ~negA;
-            faceMasks[abIndex + 2 * CHUNK_AXIS2_SIZE] = columnBits & ~posB;
-            faceMasks[abIndex + 3 * CHUNK_AXIS2_SIZE] = columnBits & ~negB;
+            // Voisins diagonaux (colonnes q+1 / q-1), disposition "odd-q" :
+            // les colonnes impaires sont décalées de +0.5 sur z.
+            //   q pair   : haut = rangée r,   bas = rangée r-1
+            //   q impair : haut = rangée r+1, bas = rangée r
+            // >> 1 ramène le bit q+1 en position q, << 1 ramène le bit q-1.
+            const uint64_t nextUp = ((cur >> 1) & EVEN_BITS) | ((posB >> 1) & ODD_BITS);
+            const uint64_t nextDown = ((negB >> 1) & EVEN_BITS) | ((cur >> 1) & ODD_BITS);
+            const uint64_t prevUp = ((cur << 1) & EVEN_BITS) | ((posB << 1) & ODD_BITS);
+            const uint64_t prevDown = ((negB << 1) & EVEN_BITS) | ((cur << 1) & ODD_BITS);
 
-            faceMasks[baIndex + 4 * CHUNK_AXIS2_SIZE] = columnBits & ~(columnBits >> 1);
-            faceMasks[baIndex + 5 * CHUNK_AXIS2_SIZE] = columnBits & ~(columnBits << 1);
+            faceMasks[baIndex + 0 * CHUNK_AXIS2_SIZE] = cur & ~posA;      // 0 : dessus   (+Y)
+            faceMasks[baIndex + 1 * CHUNK_AXIS2_SIZE] = cur & ~negA;      // 1 : dessous  (-Y)
+            faceMasks[baIndex + 2 * CHUNK_AXIS2_SIZE] = cur & ~posB;      // 2 : arête plate +z
+            faceMasks[baIndex + 3 * CHUNK_AXIS2_SIZE] = cur & ~negB;      // 3 : arête plate -z
+            faceMasks[baIndex + 4 * CHUNK_AXIS2_SIZE] = cur & ~nextUp;    // 4 : +x, +z
+            faceMasks[baIndex + 5 * CHUNK_AXIS2_SIZE] = cur & ~nextDown;  // 5 : +x, -z
+            faceMasks[baIndex + 6 * CHUNK_AXIS2_SIZE] = cur & ~prevUp;    // 6 : -x, +z
+            faceMasks[baIndex + 7 * CHUNK_AXIS2_SIZE] = cur & ~prevDown;  // 7 : -x, -z
         }
     }
 
-    // Greedy meshing faces 0-3
-    for (int face = 0; face < 4; face++) {
-        const int axis = face / 2;
-
+    for (int face = 0; face < 2; face++) {
         const int faceVertexBegin = vertexI;
 
-        for (int layer = 0; layer < CHUNK_AXIS1_SIZE; layer++) {
+        for (int layer = 0; layer < CHUNK_AXIS1_SIZE; layer++) {          // layer   = y
             const int bitsLocation = layer * CHUNK_AXIS1_SIZE + face * CHUNK_AXIS2_SIZE;
 
-            for (int forward = 0; forward < CHUNK_AXIS1_SIZE; forward++) {
+            for (int forward = 0; forward < CHUNK_AXIS1_SIZE; forward++) { // forward = x
                 uint64_t bitsHere = faceMasks[forward + bitsLocation];
 
-                const uint64_t bitsNext = forward + 1 < CHUNK_AXIS1_SIZE ? faceMasks[(forward + 1) + bitsLocation] : 0;
-
-                uint8_t rightMerged = 1;
                 while (bitsHere) {
-                    unsigned long bitPos;
+                    unsigned long bitPos;                                  // bitPos  = z
 #ifdef _MSC_VER
                     _BitScanForward64(&bitPos, bitsHere);
 #else
                     bitPos = __builtin_ctzll(bitsHere);
 #endif
+                    bitsHere &= bitsHere - 1; // efface le bit de poids faible
 
-                    const uint32_t type = voxels[getAxisIndex(axis, forward, bitPos, layer)];
-                    uint8_t& forwardMergedRef = forwardMerged[bitPos];
+                    const uint32_t type = voxels[voxelIndex(forward, layer, bitPos)];
 
-                    if ((bitsNext >> bitPos & 1) && type == voxels[getAxisIndex(axis, forward + 1, bitPos, layer)]) {
-                        forwardMergedRef++;
-                        bitsHere &= ~(1ull << bitPos);
-                        continue;
-                    }
-
-                    for (int right = bitPos + 1; right < CHUNK_AXIS1_SIZE; right++) {
-                        if (!(bitsHere >> right & 1) || forwardMergedRef != forwardMerged[right] || type != voxels[getAxisIndex(axis, forward, right, layer)]) break;
-                        forwardMerged[right] = 0;
-                        rightMerged++;
-                    }
-                    const int clearBits = bitPos + rightMerged;
-                    const uint64_t clearMask = (clearBits >= 64) ? ~0ull : ((1ull << clearBits) - 1);
-                    bitsHere &= ~clearMask;
-
-                    const uint8_t meshFront = forward - forwardMergedRef;
-                    const uint8_t meshLeft = bitPos;
-                    const uint8_t meshUp = layer + (~face & 1);
-
-                    const uint8_t meshWidth = rightMerged;
-                    const uint8_t meshLength = forwardMergedRef + 1;
-
-                    forwardMergedRef = 0;
-                    rightMerged = 1;
-
-                    uint64_t quad;
-                    switch (face) {
-                    case 0:
-                    case 1:
-                        quad = getQuad(meshFront + (face == 1 ? meshLength : 0), meshUp, meshLeft, meshLength, meshWidth, type);
-                        break;
-                    case 2:
-                    case 3:
-                        quad = getQuad(meshUp, meshFront + (face == 2 ? meshLength : 0), meshLeft, meshLength, meshWidth, type);
-                        break;
-                    }
+                    // Même convention que l'ancien code :
+                    //  face 0 (+Y) : y = layer + 1
+                    //  face 1 (-Y) : y = layer, x = forward + 1 (longueur = 1)
+                    const uint64_t quad = getQuad(
+                        forward + (face == 1 ? 1 : 0),  // x
+                        layer + (face == 0 ? 1 : 0),  // y
+                        bitPos,                       // z
+                        1,                            // h
+                        type);
 
                     insertQuad(*meshData.vertices, quad, vertexI, meshData.maxVertices);
                 }
             }
         }
 
-        const int faceVertexLength = vertexI - faceVertexBegin;
         meshData.faceVertexBegin[face] = faceVertexBegin;
-        meshData.faceVertexLength[face] = faceVertexLength;
+        meshData.faceVertexLength[face] = vertexI - faceVertexBegin;
     }
 
-    // Greedy meshing faces 4-5
-    for (int face = 4; face < 6; face++) {
-        const int axis = face / 2;
-
+    for (int face = 2; face < 8; face++) {
         const int faceVertexBegin = vertexI;
+        const int faceBase = face * CHUNK_AXIS2_SIZE;
 
-        for (int forward = 0; forward < CHUNK_AXIS1_SIZE; forward++) {
-            const int bitsLocation = forward * CHUNK_AXIS1_SIZE + face * CHUNK_AXIS2_SIZE;
-            const int bitsForwardLocation = (forward + 1) * CHUNK_AXIS1_SIZE + face * CHUNK_AXIS2_SIZE;
-
-            for (int right = 0; right < CHUNK_AXIS1_SIZE; right++) {
-                uint64_t bitsHere = faceMasks[right + bitsLocation];
+        for (int b = 0; b < CHUNK_AXIS1_SIZE; b++) {                // b = x du mesher
+            for (int y = 0; y < CHUNK_AXIS1_SIZE; y++) {
+                uint64_t bitsHere = faceMasks[faceBase + y * CHUNK_AXIS1_SIZE + b];
                 if (bitsHere == 0) continue;
 
-                const uint64_t bitsForward = forward < CHUNK_AXIS1_SIZE - 1 ? faceMasks[right + bitsForwardLocation] : 0;
-                const uint64_t bitsRight = right < CHUNK_AXIS1_SIZE - 1 ? faceMasks[right + 1 + bitsLocation] : 0;
-                const int rightCS = right * CHUNK_AXIS1_SIZE;
+                const uint64_t bitsNext = (y + 1 < CHUNK_AXIS1_SIZE)
+                    ? faceMasks[faceBase + (y + 1) * CHUNK_AXIS1_SIZE + b]
+                    : 0;
 
-                for (int i = 0; i < 64; i++) {
-					if (bitsHere == 0) break;
-                    unsigned long bitPos;
+                while (bitsHere) {
+                    unsigned long bitPos;                           // bitPos = z du mesher
 #ifdef _MSC_VER
                     _BitScanForward64(&bitPos, bitsHere);
 #else
                     bitPos = __builtin_ctzll(bitsHere);
 #endif
+                    bitsHere &= bitsHere - 1;
 
-                    bitsHere &= ~(1ull << bitPos);
+                    const uint32_t type = voxels[voxelIndex(b, y, bitPos)];
+                    uint8_t& run = forwardMerged[bitPos];           // longueur déjà fusionnée sous y
 
-                    const uint32_t type = voxels[getAxisIndex(axis, right, forward, bitPos)];
-                    uint8_t& forwardMergedRef = forwardMerged[rightCS + bitPos];
-                    uint8_t& rightMergedRef = rightMerged[bitPos];
-
-                    if (rightMergedRef == 0 && (bitsForward >> bitPos & 1) && type == voxels[getAxisIndex(axis, right, forward + 1, bitPos)]) {
-                        forwardMergedRef++;
+                    // La face continue au-dessus avec le même type : on prolonge
+                    if ((bitsNext >> bitPos & 1) && type == voxels[voxelIndex(b, y + 1, bitPos)]) {
+                        run++;
                         continue;
                     }
 
-                    if ((bitsRight >> bitPos & 1) && forwardMergedRef == forwardMerged[(rightCS + CHUNK_AXIS1_SIZE) + bitPos] && type == voxels[getAxisIndex(axis, right + 1, forward, bitPos)]) {
-                        forwardMergedRef = 0;
-                        rightMergedRef++;
-                        continue;
-                    }
+                    // Fin de la colonne : on émet un seul quad
+                    const uint8_t meshY = y - run;                // base de la colonne
+                    const uint8_t height = run + 1;                // nombre de blocs empilés
+                    run = 0;
 
-                    const uint8_t meshLeft = right - rightMergedRef;
-                    const uint8_t meshFront = forward - forwardMergedRef;
-                    const uint8_t meshUp = bitPos + (~face & 1);
-
-                    const uint8_t meshWidth = 1 + rightMergedRef;
-                    const uint8_t meshLength = 1 + forwardMergedRef;
-
-                    forwardMergedRef = 0;
-                    rightMergedRef = 0;
-
-                    const uint64_t quad = getQuad(meshLeft + (face == 4 ? meshWidth : 0), meshFront, meshUp, meshWidth, meshLength, type);
-
+                    const uint64_t quad = getQuad(b, meshY, bitPos, height, type);
                     insertQuad(*meshData.vertices, quad, vertexI, meshData.maxVertices);
                 }
             }
         }
 
-        const int faceVertexLength = vertexI - faceVertexBegin;
         meshData.faceVertexBegin[face] = faceVertexBegin;
-        meshData.faceVertexLength[face] = faceVertexLength;
+        meshData.faceVertexLength[face] = vertexI - faceVertexBegin;
     }
 
     meshData.vertexCount = vertexI;

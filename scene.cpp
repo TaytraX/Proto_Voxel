@@ -47,7 +47,7 @@ namespace scene {
 
 			std::cout << "Index of chunk at position (" << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << ") is " << index_of(chunkMap, chunkPos) << std::endl;
             MeshData meshData{
-                .faceMasks = new uint64_t[CHUNK_AXIS2_SIZE * 6]{ 0 },
+                .faceMasks = new uint64_t[CHUNK_AXIS2_SIZE * 8]{ 0 },
                 .opaqueMask = fillOpaqueMask(chunkMap[chunkPos]),
                 .forwardMerged = new uint8_t[CHUNK_AXIS2_SIZE]{ 0 },
                 .rightMerged = new uint8_t[CHUNK_AXIS1_SIZE]{ 0 },

@@ -33,22 +33,22 @@ SOFTWARE.
 // Ta formule i = y*(Tx*Tz) + Tx*z + x devient, avec Tx = Tz = CS_P :
 static constexpr int Tx = CHUNK_AXIS1_SIZE;
 static constexpr int Tz = CHUNK_AXIS1_SIZE;
-static constexpr int MAX_FACE = 10000;
+static constexpr int MAX_FACE = 16000;
 
-static const inline int voxelIndex(const int x, const int y, const int z) {
+static const inline int voxelIndex(const int z, const int y, const int x) {
 	return (y * (Tx * Tz)) + (Tx * z) + x;
 }
 
 struct MeshData {
-	uint64_t* faceMasks = nullptr; // CS_2 * 6
+	uint64_t* faceMasks = nullptr; // CS_2 * 8
 	uint64_t* opaqueMask = nullptr; //CS_P2
 	uint8_t* forwardMerged = nullptr; // CS_2
 	uint8_t* rightMerged = nullptr; // CS
 	std::vector<uint64_t>* vertices = nullptr;
 	int vertexCount = 0;
 	int maxVertices = 0;
-	int faceVertexBegin[6] = { 0 };
-	int faceVertexLength[6] = { 0 };
+	int faceVertexBegin[8] = { 0 };
+	int faceVertexLength[8] = { 0 };
 };
 
 // @brief Fills meshData.opaqueMask from the raw voxel buffer. MUST be called
